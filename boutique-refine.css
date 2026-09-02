@@ -1,0 +1,17 @@
+:root{--terrazzo-texture:url('assets/terrazzo-reference.jpg?v=final-1')}
+.ds-terrazzo{background-color:#0b0b0b!important;background-image:var(--terrazzo-texture)!important;background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important}
+.ds-auth-screen{min-height:calc(100vh - 110px);padding:60px 16px 90px;display:grid;place-items:start center;background:linear-gradient(rgba(247,245,239,.90),rgba(247,245,239,.90)),var(--terrazzo-texture) center/cover no-repeat}
+.ds-auth-card{width:min(100%,520px);background:rgba(247,245,239,.97);border:1px solid rgba(9,9,9,.22);padding:clamp(28px,7vw,54px);box-shadow:14px 14px 0 #0b0b0b}
+.ds-auth-card h1{margin:5px 0 20px;font:400 clamp(3rem,11vw,5rem)/.9 Georgia,serif;letter-spacing:-.05em}
+.ds-auth-card p{line-height:1.45;max-width:390px;margin-bottom:30px}
+.ds-auth-kicker{font-size:.66rem;letter-spacing:.3em;font-weight:700}
+.ds-auth-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.ds-mfa-qr{display:block;width:min(220px,100%);height:auto;margin:0 auto 18px;border:1px solid rgba(9,9,9,.22);background:#fff;padding:10px}
+.ds-mfa-secret{overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;letter-spacing:.04em;margin:-6px 0 18px}
+.ds-auth-help{margin-top:18px;font-size:.74rem;line-height:1.5;color:var(--muted)}
+.ds-field input:focus,.ds-field select:focus,.ds-field textarea:focus{outline:2px solid #0b0b0b;outline-offset:1px}
+.ds-story-frame{background:#f7f5ef!important}
+.ds-story-frame .ds-terrazzo-layer{position:absolute!important;inset:0!important;background:var(--terrazzo-texture) center/cover no-repeat!important;display:block!important;z-index:0!important}
+.ds-story-paper{inset:0 11%!important;background:#f7f5ef!important;clip-path:none!important;z-index:1!important}
+.ds-story-content{position:relative!important;z-index:2!important;padding-left:14%!important;padding-right:14%!important}
+@media(max-width:640px){.ds-auth-screen{padding-top:34px}.ds-auth-card{box-shadow:9px 9px 0 #0b0b0b}.ds-auth-actions .ds-btn{flex:1 1 100%}.ds-story-paper{inset:0 12%!important}.ds-story-content{padding-left:15%!important;padding-right:15%!important}}
