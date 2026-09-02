@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI-powered product photo cleanup, marketplace listing copy and creative images for online resellers.">
+  <title>Dressup Sesh Studio</title>
+  <link rel="stylesheet" href="styles.css?v=mobile-final-2">
+  <link rel="stylesheet" href="auth.css?v=stripe-beta-1">
+  <style>
+    .cloud-choice{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .cloud-choice>span{min-width:72px;margin-right:6px;font-size:9px;font-weight:800;letter-spacing:.15em}
+    .cloud-choice strong{padding:10px 12px;background:#eef5df;color:#466a3f;font-size:9px;letter-spacing:.1em}
+    .photo-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.photo-actions button,.photo-retry,.original-save{border:0;background:transparent;padding:0;color:var(--wine);font-size:8px;font-weight:800;letter-spacing:.06em;text-decoration:underline;cursor:pointer}.photo-retry:disabled,.original-save:disabled{opacity:.45;cursor:not-allowed}.original-save{margin-top:7px}.photo-meta{align-items:flex-start;gap:8px}.photo-meta>strong{flex:0 0 auto}
+    .photo-editor-dialog{width:min(94vw,780px);max-height:94vh;border:1px solid var(--line);background:var(--cream);padding:0;box-shadow:0 30px 90px rgba(23,22,20,.3)}
+    .photo-editor-dialog::backdrop{background:rgba(23,22,20,.72)}.photo-editor-head{padding:20px 22px 14px;border-bottom:1px solid var(--line)}.photo-editor-head h2{margin:0 0 6px;font:500 30px Georgia,serif}.photo-editor-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+    .photo-editor-stage{margin:16px 22px;max-height:60vh;min-height:240px;overflow:auto;overscroll-behavior:contain;background-color:#fff;background-image:linear-gradient(45deg,#e5e5e5 25%,transparent 25%),linear-gradient(-45deg,#e5e5e5 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e5e5 75%),linear-gradient(-45deg,transparent 75%,#e5e5e5 75%);background-size:18px 18px;background-position:0 0,0 9px,9px -9px,-9px 0}
+    #photo-editor-canvas{display:block;max-width:none;height:auto;touch-action:none;cursor:crosshair}.photo-editor-stage.moving #photo-editor-canvas{cursor:grab}.photo-editor-stage.panning #photo-editor-canvas{cursor:grabbing}.photo-editor-tools{padding:0 22px 22px;display:grid;gap:14px}.editor-modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.editor-modes button{border:1px solid var(--line);background:white;padding:12px;font-size:9px;font-weight:800;letter-spacing:.1em}.editor-modes button.selected{border:2px solid var(--wine);padding:11px;background:#fff5f1;color:var(--wine)}.editor-adjustments{display:grid;grid-template-columns:1fr 1fr;gap:16px}.brush-control,.zoom-control{display:grid;align-items:center;gap:12px;font-size:10px;font-weight:800;letter-spacing:.1em}.brush-control{grid-template-columns:auto 1fr auto}.zoom-control{grid-template-columns:auto 1fr auto auto}.brush-control input,.zoom-control input{width:100%}.zoom-buttons{display:flex;gap:5px}.zoom-buttons button{width:30px;height:30px;border:1px solid var(--line);background:white;font-weight:800}.editor-actions{display:flex;gap:8px;flex-wrap:wrap}.editor-actions button{flex:1;min-width:110px;border:1px solid var(--ink);background:transparent;padding:13px 10px;font-size:9px;font-weight:800;letter-spacing:.1em}.editor-actions .apply-edit{background:var(--wine);border-color:var(--wine);color:#fff}.output-actions{display:flex;align-items:center;gap:8px}.output-actions button{border:0;background:var(--acid);padding:8px 11px;font-size:9px;font-weight:800;cursor:pointer}.output-actions a{font-size:9px;font-weight:800}
+    @media(max-width:560px){.photo-editor-dialog{width:96vw}.photo-editor-stage{margin:12px;max-height:56vh}.photo-editor-head{padding:16px}.photo-editor-tools{padding:0 12px 16px}.editor-adjustments{grid-template-columns:1fr}.editor-actions button{min-width:calc(50% - 8px)}}
+    .usage-pill{border:1px solid var(--wine);border-radius:999px;padding:9px 12px;background:#fff7f1;color:var(--wine);font-size:9px;font-weight:800;letter-spacing:.09em;white-space:nowrap;cursor:pointer}
+    .paywall-dialog{width:min(92vw,500px);border:1px solid var(--line);background:var(--cream);padding:clamp(30px,6vw,52px);box-shadow:0 30px 90px rgba(23,22,20,.28);text-align:center}.paywall-dialog::backdrop{background:rgba(23,22,20,.62);backdrop-filter:blur(3px)}.paywall-dialog h2{margin:0;font:500 clamp(36px,7vw,52px)/1 Georgia,serif;letter-spacing:-.035em}.paywall-dialog>p:not(.eyebrow){margin:20px auto 0;max-width:380px;color:var(--muted);font-size:14px;line-height:1.6}
+    @media(max-width:700px){.usage-pill{position:fixed;left:12px;bottom:12px;z-index:50;background:var(--cream);box-shadow:0 8px 24px rgba(23,22,20,.14)}}
+  </style>
+</head>
+<body class="auth-pending">
+  <section class="login-gate" id="login-gate" aria-labelledby="login-title">
+    <header class="public-topbar">
+      <div class="brand" aria-label="Dressup Sesh Studio">
+        <span class="brand-mark">DS</span>
+        <span><strong>DRESSUP SESH</strong><small>LISTING STUDIO</small></span>
+      </div>
+      <button class="public-signin" id="gate-signin" type="button">SIGN IN</button>
+    </header>
+    <div class="public-landing">
+      <div class="public-hero">
+        <div>
+          <p class="eyebrow">WE MAKE LISTING AUTOMATED, ELEVATED AND EASY</p>
+          <h1 id="login-title">Turn your closet into listings buyers want to own.</h1>
+          <p class="public-lede">Dressup Sesh turns everyday product photos into polished images, knowledgeable copy and believable creative—so every item has a stronger chance to be found, trusted and wanted.</p>
+          <div class="gate-actions">
+            <button class="primary" id="gate-create" type="button">TRY 3 ITEMS FREE</button>
+            <p class="gate-message" id="gate-message" aria-live="polite">No subscription required for the free trial.</p>
+          </div>
+        </div>
+        <div class="workflow-preview" aria-label="Dressup Sesh workflow">
+          <article><span>01</span><div><strong>Clean product photos</strong><p>Remove backgrounds, refine edges and keep reference-only details intact.</p></div></article>
+          <article><span>02</span><div><strong>Write marketplace copy</strong><p>Create accurate, searchable titles and descriptions from the same photo set.</p></div></article>
+          <article><span>03</span><div><strong>Create campaign images</strong><p>Generate fit, studio, social and editorial visuals without reshooting.</p></div></article>
+        </div>
+      </div>
+      <section class="transformation-demo" aria-labelledby="transformation-title">
+        <div class="transformation-intro">
+          <p class="eyebrow">ONE PHOTO SET · A COMPLETE RESULTS PACKAGE</p>
+          <h2 id="transformation-title">See the listing before it exists.</h2>
+          <p>Start with the kind of hanger photo already in your camera roll. Dressup Sesh turns it into assets that clean up the listing, sharpen the story and help shoppers picture the piece.</p>
+        </div>
+        <div class="transformation-story">
+          <div class="transformation-stage" data-demo-stage data-demo-active="clean">
+            <figure class="before-example">
+              <div class="demo-label"><span>BEFORE</span><small>Everyday seller photo</small></div>
+              <img src="assets/demo-dress-before.jpg" alt="Teal satin wrap dress photographed on a hanger in a cluttered bedroom" width="1122" height="1402" loading="lazy">
+            </figure>
+            <div class="demo-flow-arrow" aria-hidden="true"><span>→</span><small>TRANSFORM</small></div>
+            <div class="results-package" aria-label="Dressup Sesh example results package">
+              <div class="package-heading">
+                <div class="package-title"><span>RESULTS PACKAGE</span><small>3 ready-to-use assets</small></div>
+                <div class="package-nav" aria-label="Navigate example results">
+                  <button type="button" data-demo-prev aria-label="Previous result">←</button>
+                  <span data-demo-position aria-live="polite">1 / 3</span>
+                  <button type="button" data-demo-next aria-label="Next result">→</button>
+                </div>
+              </div>
+              <div class="result-stack">
+                <article class="demo-result clean-result" data-demo-result="clean">
+                  <div class="demo-label"><span>01 · CLEAN</span><small>Listing photo</small></div>
+                  <img src="assets/demo-dress-clean-white.jpg" alt="The same teal satin wrap dress isolated on a plain white background" width="1122" height="1402" loading="lazy">
+                </article>
+                <article class="demo-result copy-result" data-demo-result="copy">
+                  <div class="demo-label"><span>02 · DESCRIBE</span><small>Searchable copy</small></div>
+                  <div class="copy-panel">
+                    <div class="copy-panel-head"><span>COPY-READY OUTPUT</span><span>COPY ALL</span></div>
+                    <div class="copy-panel-body">
+                      <p class="listing-title">Teal Wrap Maxi Dress With Puff Sleeves And Tie Waist</p>
+                      <p>Teal maxi dress with a wrap-style V-neckline, gathered puff sleeves, fitted waist, adjustable side tie, and flowing full-length skirt. The fabric has a smooth satin-like sheen, creating an elegant draped silhouette.</p>
+                      <p>Good condition. No wear visible.</p>
+                      <p><strong>Keywords:</strong> teal maxi dress, wrap dress, puff sleeve dress, tie waist dress, V-neck maxi dress, satin-look dress, formal occasion dress, wedding guest dress</p>
+                      <p><strong>Approx. original retail:</strong> $40–$80</p>
+                    </div>
+                  </div>
+                </article>
+                <article class="demo-result creative-result" data-demo-result="creative">
+                  <div class="demo-label"><span>03 · IMAGINE</span><small>Believable lifestyle image</small></div>
+                  <img src="assets/demo-dress-lived-in.jpg" alt="A woman taking a mirror selfie in the same teal satin wrap dress in a lived-in bedroom" width="1024" height="1536" loading="lazy">
+                </article>
+              </div>
+              <p class="package-note">One upload becomes a more complete product story.</p>
+            </div>
+          </div>
+          <article class="mobile-demo-detail" data-mobile-demo-detail aria-live="polite">
+            <span data-mobile-demo-number>01</span>
+            <h3 data-mobile-demo-title>Clear the distractions.</h3>
+            <p data-mobile-demo-copy>Create studio-like product images with crisp, clear backgrounds that put the item first and feel ready for any marketplace.</p>
+          </article>
+          <div class="transformation-steps" aria-label="Value of each result">
+            <article class="transformation-step is-active" data-demo-step="clean">
+              <span>01</span>
+              <h3>Clear the distractions.</h3>
+              <p>Create studio-like product images with crisp, clear backgrounds that put the item first and feel ready for any marketplace.</p>
+            </article>
+            <article class="transformation-step" data-demo-step="copy">
+              <span>02</span>
+              <h3>Make the details searchable.</h3>
+              <p>Knowledgeable, optimized copy names the features buyers search for. Approximate original retail context also helps validate value and gives you a smarter starting point for pricing.</p>
+            </article>
+            <article class="transformation-step" data-demo-step="creative">
+              <span>03</span>
+              <h3>Show the possibility.</h3>
+              <p>A believable try-on helps shoppers imagine the fit, movement and place this piece could have in their own wardrobe—without planning another shoot.</p>
+            </article>
+          </div>
+        </div>
+        <section class="quality-comparison" aria-labelledby="quality-title">
+          <div class="quality-copy">
+            <p class="eyebrow">THE DRESSUP SESH DIFFERENCE</p>
+            <h2 id="quality-title">Built from your item—not a generic idea of it.</h2>
+            <p>Leading image tools can invent a polished fashion scene. Dressup Sesh follows the garment and visual cues in your original photos, creating a result that feels specific, recognizable and easier to trust.</p>
+          </div>
+          <div class="comparison-grid">
+            <figure>
+              <img src="assets/demo-dress-model.jpg" alt="A polished editorial image of a model in the teal dress" width="1122" height="1402">
+              <figcaption><span>LEADING IMAGE TOOL</span><strong>Polished, but generic.</strong><p>A beautiful image that could belong to any listing.</p></figcaption>
+            </figure>
+            <figure class="context-result">
+              <img src="assets/demo-dress-lived-in.jpg" alt="A believable mirror selfie of a woman in the teal dress in the same bedroom context" width="1024" height="1536">
+              <figcaption><span>DRESSUP SESH</span><strong>Specific to your item.</strong><p>Garment and source-photo cues carry through.</p></figcaption>
+            </figure>
+          </div>
+        </section>
+        <section class="selling-benefits" aria-labelledby="benefits-title">
+          <header>
+            <p class="eyebrow">WHY THE PACKAGE MATTERS</p>
+            <h2 id="benefits-title">A better listing does more than look better.</h2>
+            <p>Each asset answers a different buyer question: What is it? Can I trust it? Can I see it in my life?</p>
+          </header>
+          <article class="benefit-row copy-benefit">
+            <div class="benefit-number">01</div>
+            <div class="benefit-copy">
+              <p class="eyebrow">GET FOUND</p>
+              <h3>Knowledgeable copy creates more paths to the listing.</h3>
+              <p>Specific product language gives marketplaces and shoppers useful ways to understand the piece—silhouette, material, color, era, detail and occasion—without stuffing the description with filler.</p>
+              <p class="benefit-outcome">The value: clearer search relevance and a listing that sounds informed, not generic.</p>
+            </div>
+            <div class="keyword-map" aria-label="Example searchable product details">
+              <span>TEAL</span><span>SATIN</span><span>WRAP</span><span>MIDI</span><span>PUFF SLEEVE</span><span>WEDDING GUEST</span><span>OCCASION</span>
+              <p>One product. More accurate ways to discover it.</p>
+            </div>
+          </article>
+          <article class="benefit-row image-benefit">
+            <div class="benefit-number">02</div>
+            <div class="benefit-visual clean-visual">
+              <img src="assets/demo-dress-clean-white.jpg" alt="Teal satin dress isolated on a plain white background" width="1122" height="1402">
+            </div>
+            <div class="benefit-copy">
+              <p class="eyebrow">BUILD CONFIDENCE</p>
+              <h3>Quality product images make the item easier to judge.</h3>
+              <p>A clean main image removes visual noise while preserving the actual garment. Shoppers can scan the silhouette, compare options and focus on what they are buying.</p>
+              <p class="benefit-outcome">The value: a more credible presentation that supports price confidence.</p>
+            </div>
+          </article>
+          <article class="benefit-row image-benefit lifestyle-benefit">
+            <div class="benefit-number">03</div>
+            <div class="benefit-copy">
+              <p class="eyebrow">CREATE DESIRE</p>
+              <h3>Believable lifestyle images turn an item into an outfit.</h3>
+              <p>Seeing the dress on a person reveals proportion and movement. A familiar, lived-in setting helps the shopper imagine where they would wear it and what they already own that could go with it.</p>
+              <p class="benefit-outcome">The value: stronger emotional context without losing the product’s identity.</p>
+            </div>
+            <div class="benefit-visual lived-visual">
+              <img src="assets/demo-dress-lived-in.jpg" alt="Woman wearing the teal satin dress in a lived-in bedroom" width="1024" height="1536">
+            </div>
+          </article>
+        </section>
+        <section class="public-plans" id="plans" aria-labelledby="plans-title">
+          <header>
+            <p class="eyebrow">CHOOSE YOUR NEXT STEP</p>
+            <h2 id="plans-title">Start free. Keep listing when you’re ready.</h2>
+            <p>Every new account includes three complete items. Subscribe only after you have seen the workflow on your own inventory.</p>
+          </header>
+          <div class="plan-grid">
+            <article class="plan-card">
+              <p class="eyebrow">FREE STUDIO TRIAL</p>
+              <h3>3 items</h3>
+              <p>Per item: up to 15 background removals, three copy generations and two creative images.</p>
+              <button class="secondary wide" type="button" data-open-plan="trial">TRY 3 ITEMS FREE</button>
+            </article>
+            <article class="plan-card featured">
+              <p class="eyebrow">PRIVATE BETA</p>
+              <h3>$12.99 <small>/ month</small></h3>
+              <p>20 items, 300 background removals, 25 copy generations and 25 creative images each month.</p>
+              <button class="primary wide" type="button" data-open-plan="subscribe">SUBSCRIBE TO PRIVATE BETA</button>
+              <small>Use BETA50 at checkout for 50% off your first month through September 30.</small>
+            </article>
+            <article class="plan-card">
+              <p class="eyebrow">CREATIVE ADD-ON</p>
+              <h3>$2.99 <small>one time</small></h3>
+              <p>Ten additional creative images for active Private Beta members. Credits remain until used.</p>
+              <button class="secondary wide" type="button" data-open-plan="credits">ADD 10 CREATIVE IMAGES</button>
+            </article>
+            <article class="plan-card pro-card">
+              <p class="eyebrow">BULK LISTING PRO · COMING NEXT</p>
+              <h3>50–200 items <small>/ month</small></h3>
+              <p>Higher-volume inventory workflows, batch tools and a persistent listing log.</p>
+              <form id="pro-waitlist-form" class="waitlist-form">
+                <label for="pro-waitlist-email">Email</label>
+                <input id="pro-waitlist-email" type="email" autocomplete="email" placeholder="you@example.com" required>
+                <button class="secondary" type="submit">NOTIFY ME</button>
+              </form>
+              <p class="waitlist-message" id="pro-waitlist-message" aria-live="polite"></p>
+            </article>
+          </div>
+        </section>
+      </section>
+      <details class="public-trust technical-details">
+        <summary><span>HOW IT WORKS</span><small>Photo handling and privacy</small></summary>
+        <div class="trust-grid">
+          <div><strong>Prepared on your device</strong><p>Your browser converts and resizes files before processing to reduce upload time.</p></div>
+          <div><strong>Sent only when you choose</strong><p>Selected photos are securely sent to cloud AI services only after you press a cleanup or generation button.</p></div>
+          <div><strong>Not stored as an image library</strong><p>Product photos are not saved in our database. Save or download your finished files before clearing the item or refreshing.</p></div>
+        </div>
+      </details>
+    </div>
+  </section>
+  <main class="app-shell" id="top">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="Dressup Sesh Studio home">
+        <span class="brand-mark">DS</span>
+        <span><strong>DRESSUP SESH</strong><small>LISTING STUDIO</small></span>
+      </a>
+      <div class="account-tools">
+        <span class="usage-pill hidden" id="usage-pill"></span>
+        <button class="plan-button hidden" id="plan-button" type="button">PLAN</button>
+        <span class="connection-pill" id="connection-pill"><span class="status-dot"></span><span id="connection-copy">Photo cleanup ready</span></span>
+        <button class="auth-button" id="auth-button">SIGN IN</button>
+      </div>
+    </header>
+
+    <section class="intro">
+      <p class="eyebrow">THE FAST TRACK FROM CAMERA ROLL TO CLOSET</p>
+      <h1>Clean photos. Sharp copy.<br>Ready to list.</h1>
+      <p class="lede">Upload a full product set once. Get every photo back separately—plus marketplace-ready title and description copy in your exact format.</p>
+    </section>
+
+    <nav class="mode-tabs" aria-label="Studio mode">
+      <button class="active" data-tab="photos">01 · PHOTO CLEANUP</button>
+      <button data-tab="listing">02 · LISTING COPY</button>
+      <button data-tab="creative">03 · CREATIVE IMAGES</button>
+    </nav>
+
+    <section class="workspace" id="photos-panel">
+      <div class="workspace-head">
+        <div><p class="step">STEP 01</p><h2>Add your product photos</h2><p>JPG, PNG or HEIC · Up to 20 photos per item</p></div>
+        <span class="count hidden" id="photo-count"></span>
+      </div>
+
+      <div class="dropzone" id="dropzone" role="button" tabindex="0">
+        <input id="file-input" type="file" accept="image/*,.heic,.heif" multiple hidden>
+        <span class="upload-icon">＋</span>
+        <strong>Drop your photos here</strong>
+        <span>or click to choose from your device</span>
+      </div>
+
+      <div class="photo-grid hidden" id="photo-grid"></div>
+
+      <div class="action-bar hidden" id="action-bar">
+        <div class="processing-options">
+          <div class="background-choice">
+            <span>BACKGROUND</span>
+            <button class="selected" data-background="white"><i class="white-swatch"></i> White</button>
+            <button data-background="transparent"><i class="transparent-swatch"></i> Transparent</button>
+          </div>
+          <div class="cloud-choice">
+            <span>PROCESSING</span>
+            <strong>CLOUD · FAST &amp; PHONE-FRIENDLY</strong>
+          </div>
+        </div>
+        <div class="action-buttons">
+          <button class="clear-all" id="clear-all" type="button">CLEAR ALL · NEW ITEM</button>
+          <button class="save-all" id="save-originals" type="button" disabled>SAVE ALL ORIGINAL COPIES</button>
+          <button class="save-all" id="save-all" type="button" disabled>SAVE ALL EDITED</button>
+          <button class="download-all" id="download-all" disabled>DOWNLOAD RECORD SET</button>
+          <button class="primary" id="process-button" disabled>REMOVE BACKGROUNDS</button>
+        </div>
+        <p class="save-hint">Save All Original Copies makes fresh copies that appear beside your newly saved edited photos. Save All Edited includes only finished background-removal results. Download Record Set preserves the exact uploaded files.</p>
+      </div>
+
+      <p class="setup-guidance">Upload the photos you want cleaned. Mark labels, measurements or detail shots as Reference Only.</p>
+      <details class="setup-note technical-details" id="setup-note"><summary>HOW IT WORKS</summary><div><strong>Cloud cleanup, prepared by your browser.</strong><span>Your device converts and resizes photos first. When you press Remove Backgrounds, selected photos are securely sent for processing and returned to this page. Reference Only photos skip cleanup and their facts are prioritized for copy and creative accuracy.</span></div></details>
+    </section>
+
+    <section class="workspace hidden" id="creative-panel">
+      <div class="workspace-head"><div><p class="step">STEP 03</p><h2>Create campaign-ready product images</h2><p>Choose one format, add an optional visual reference and generate only when you are ready.</p></div></div>
+      <button class="empty-listing" id="empty-creative"><span>＋</span><strong>Add product photos first</strong><small>Your uploaded item photos keep every generated image product-specific.</small></button>
+      <div class="creative-layout hidden" id="creative-layout">
+        <div class="creative-controls">
+          <p class="step">IMAGE FORMAT</p>
+          <div class="creative-types" role="radiogroup" aria-label="Generated image format">
+            <button class="selected" data-creative-type="on_body" type="button"><strong>On-the-body fit photo</strong><span>Natural vertical iPhone-style fit image</span></button>
+            <button data-creative-type="ghost" type="button"><strong>Ghost mannequin</strong><span>Clean apparel-focused listing image</span></button>
+            <button data-creative-type="influencer" type="button"><strong>Social media influencer post</strong><span>Aspirational, believable lifestyle content</span></button>
+            <button data-creative-type="editorial" type="button"><strong>Styled layout editorial image</strong><span>Magazine-inspired flat lay or product composition</span></button>
+          </div>
+
+          <div class="creative-field">
+            <label for="creative-reference"><strong>OPTIONAL REFERENCE PHOTO</strong><span>Used for pose, framing, setting or layout—not as the product.</span></label>
+            <input id="creative-reference" type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" hidden>
+            <button class="reference-picker" id="reference-picker" type="button"><span>＋</span><strong>Add inspiration photo</strong><small>JPG, PNG, WEBP or HEIC</small></button>
+            <div class="reference-preview hidden" id="reference-preview">
+              <img id="reference-image" alt="Creative reference preview">
+              <div><strong>REFERENCE READY</strong><button id="remove-reference" type="button">REMOVE</button></div>
+            </div>
+          </div>
+
+          <label class="creative-field" for="creative-instructions"><strong>OPTIONAL DIRECTION</strong><span>Example: use this pose, crop below the face, or match this camera angle.</span>
+            <textarea id="creative-instructions" maxlength="500" rows="4" placeholder="Add any specific direction…"></textarea>
+          </label>
+
+          <div class="creative-source-wrap">
+            <p class="step">PRODUCT + REFERENCE SOURCES</p>
+            <div class="source-strip" id="creative-source-strip"></div>
+          </div>
+          <button class="primary wide" id="creative-generate" type="button">GENERATE ON-THE-BODY PHOTO</button>
+          <p class="microcopy">Nothing is sent or generated until you press the button.</p>
+          <p class="error-text hidden" id="creative-error"></p>
+        </div>
+
+        <div class="creative-output">
+          <div class="output-head"><span>GENERATED OUTPUTS</span><span id="creative-count"></span></div>
+          <div class="creative-placeholder" id="creative-placeholder"><span>DS</span><p>Every generated image for this item will stay here until you choose Clear All · New Item.</p></div>
+          <div class="creative-results hidden" id="creative-results"></div>
+          <button class="save-all creative-save-all hidden" id="creative-save-all" type="button" disabled>SAVE ALL CREATIVE TO PHOTOS</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace hidden" id="listing-panel">
+      <div class="workspace-head"><div><p class="step">STEP 02</p><h2>Create the marketplace listing</h2><p>The same uploaded photos become your copy-ready title and description for resale platforms.</p></div></div>
+      <button class="empty-listing" id="empty-listing"><span>＋</span><strong>Add product photos first</strong><small>Upload once, then return here for the listing.</small></button>
+      <div class="listing-layout hidden" id="listing-layout">
+        <div class="listing-source">
+          <p class="step">SOURCE PHOTOS</p>
+          <div class="source-strip" id="source-strip"></div>
+          <label class="creative-field" for="listing-additional-info"><strong>OPTIONAL ADDITIONAL ITEM INFORMATION</strong><span>Add facts the photos may not capture—measurements, material, flaws, style number, included accessories or history.</span>
+            <textarea id="listing-additional-info" maxlength="2000" rows="5" placeholder="Example: Measures 12 in. wide × 9 in. tall. Genuine leather. Includes dust bag. Small scratch on back corner…"></textarea>
+          </label>
+          <button class="primary wide" id="listing-button" disabled>CREATE TITLE + DESCRIPTION</button>
+          <p class="microcopy" id="listing-note">Sign in to activate listing generation.</p>
+        </div>
+        <div class="listing-output">
+          <div class="output-head"><span>COPY-READY OUTPUT</span><button id="copy-button" disabled>COPY ALL</button></div>
+          <div class="output-placeholder" id="output-placeholder"><span>DS</span><p>Your exact <strong>Title + Description</strong> format will appear here—nothing extra.</p></div>
+          <pre class="hidden" id="listing-output"></pre>
+          <p class="error-text hidden" id="listing-error">The listing could not be generated. Please try again.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer><span>DRESSUP SESH STUDIO</span><span>ONE ITEM IN · READY TO SELL OUT</span></footer>
+  </main>
+  <dialog class="auth-dialog" id="auth-dialog">
+    <button class="dialog-close" id="dialog-close" aria-label="Close sign-in">×</button>
+    <p class="eyebrow">STUDIO ACCESS</p>
+    <h2>Sign in to your studio</h2>
+    <p>Use an existing account or create one to process your first three items free.</p>
+    <form id="auth-form">
+      <label>Email<input id="auth-email" type="email" autocomplete="email" required></label>
+      <label>Password<input id="auth-password" type="password" autocomplete="current-password" minlength="8" required></label>
+      <div class="turnstile-wrap" id="auth-turnstile" hidden aria-label="Security verification"></div>
+      <button class="primary wide" type="submit">SIGN IN</button>
+    </form>
+    <button class="secondary wide" id="signup-button">CREATE FREE ACCOUNT</button>
+    <button class="text-button hidden" id="resend-button" type="button">RESEND CONFIRMATION EMAIL</button>
+    <p class="auth-message" id="auth-message"></p>
+  </dialog>
+  <dialog class="paywall-dialog" id="paywall-dialog">
+    <button class="dialog-close" id="paywall-close" aria-label="Close">×</button>
+    <p class="eyebrow">FREE TRIAL COMPLETE</p>
+    <h2>You created three complete items.</h2>
+    <p>Your work is still yours to save and download. Continue with 20 items each month in the Private Beta.</p>
+    <button class="primary wide" id="paywall-subscribe" type="button">SUBSCRIBE · $12.99 / MONTH</button>
+    <button class="text-button" id="paywall-done" type="button">NOT NOW</button>
+  </dialog>
+  <dialog class="billing-dialog" id="billing-dialog">
+    <button class="dialog-close" id="billing-close" aria-label="Close account plan">×</button>
+    <p class="eyebrow">YOUR STUDIO PLAN</p>
+    <h2 id="billing-plan-title">Free Studio Trial</h2>
+    <p id="billing-summary">Three complete items are included.</p>
+    <div class="billing-balance">
+      <div><span>ITEMS REMAINING</span><strong id="billing-items">3</strong></div>
+      <div><span>EXTRA CREATIVE</span><strong id="billing-credits">0</strong></div>
+    </div>
+    <button class="primary wide" id="billing-subscribe" type="button">SUBSCRIBE · $12.99 / MONTH</button>
+    <button class="secondary wide hidden" id="billing-add-credits" type="button">ADD 10 CREATIVE IMAGES · $2.99</button>
+    <button class="text-button hidden" id="billing-manage" type="button">MANAGE SUBSCRIPTION</button>
+    <div class="billing-pro">
+      <strong>BULK LISTING PRO · COMING NEXT</strong>
+      <p>Join the list for the 50–200 item workflow.</p>
+      <button class="secondary wide" id="billing-pro-waitlist" type="button">JOIN PRO WAITLIST</button>
+    </div>
+    <p class="billing-message" id="billing-message" aria-live="polite"></p>
+  </dialog>
+  <dialog class="photo-editor-dialog" id="photo-editor-dialog">
+    <div class="photo-editor-head">
+      <h2>Refine this photo</h2>
+      <p>Zoom in, choose Remove or Restore, and use Move to reposition the photo without painting.</p>
+    </div>
+    <div class="photo-editor-stage" id="photo-editor-stage"><canvas id="photo-editor-canvas"></canvas></div>
+    <div class="photo-editor-tools">
+      <div class="editor-modes" role="group" aria-label="Editing brush mode">
+        <button class="selected" id="editor-mode-remove" type="button">REMOVE</button>
+        <button id="editor-mode-restore" type="button">RESTORE</button>
+        <button id="editor-mode-move" type="button">MOVE</button>
+      </div>
+      <div class="editor-adjustments">
+        <label class="brush-control" for="editor-brush-size"><span>BRUSH</span><input id="editor-brush-size" type="range" min="8" max="120" value="36"><output id="editor-brush-output">36</output></label>
+        <div class="zoom-control"><span>ZOOM</span><input id="editor-zoom" aria-label="Photo zoom" type="range" min="100" max="400" step="25" value="100"><output id="editor-zoom-output">100%</output><span class="zoom-buttons"><button id="editor-zoom-out" type="button" aria-label="Zoom out">−</button><button id="editor-zoom-in" type="button" aria-label="Zoom in">＋</button></span></div>
+      </div>
+      <div class="editor-actions">
+        <button id="editor-undo" type="button">UNDO</button>
+        <button id="editor-reset" type="button">RESET</button>
+        <button id="editor-cancel" type="button">CANCEL</button>
+        <button class="apply-edit" id="editor-apply" type="button">APPLY EDIT</button>
+      </div>
+    </div>
+  </dialog>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <script src="config.js"></script>
+  <script src="turnstile.js?v=2"></script>
+  <script src="landing.js?v=mobile-compact-1"></script>
+  <script type="module" src="app.js?v=stripe-beta-1"></script>
+</body>
+</html>

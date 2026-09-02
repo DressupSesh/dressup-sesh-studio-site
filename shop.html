@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f5ef" />
+  <title>Dressup Sesh — New Arrivals</title>
+  <meta name="description" content="Curated one-of-one vintage finds from Dressup Sesh." />
+  <link rel="stylesheet" href="boutique.css?v=final-2" />
+  <link rel="stylesheet" href="boutique-refine.css?v=final-2" />
+  <link rel="stylesheet" href="final-polish.css?v=2" />
+</head>
+<body>
+  <div class="ds-shell">
+    <header class="ds-header">
+      <button class="ds-icon-button" type="button" aria-label="Open menu"><span class="ds-menu-lines"></span></button>
+      <a class="ds-wordmark small" href="index.html" aria-label="Dressup Sesh home">Dressup Sesh.</a>
+      <span class="ds-count" id="shop-count" aria-hidden="true">0</span>
+    </header>
+
+    <main class="ds-container">
+      <section class="ds-section-head">
+        <div><h1>New Arrivals</h1><div class="ds-kicker ds-item-count" id="item-count">Loading edit</div></div>
+        <button class="ds-filter-toggle" id="filter-toggle" type="button" aria-expanded="false">＋ Filter</button>
+      </section>
+      <div class="ds-filter-panel" id="filter-panel">
+        <select id="brand-filter" aria-label="Filter by brand"><option value="">All brands</option></select>
+        <select id="size-filter" aria-label="Filter by size"><option value="">All sizes</option></select>
+      </div>
+      <section class="ds-product-grid" id="shop-grid" aria-live="polite"></section>
+    </main>
+  </div>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+  <script src="boutique.js?v=3"></script>
+  <script src="site-polish.js?v=2"></script>
+</body>
+</html>
