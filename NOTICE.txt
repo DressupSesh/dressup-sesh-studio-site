@@ -1,0 +1,13 @@
+Copyright (c) 2026 Dressup Sesh. All rights reserved.
+
+This software, its source code, prompts, workflows, visual design, and
+documentation are proprietary and confidential except for materials expressly
+identified as third-party or separately licensed.
+
+No permission is granted to copy, modify, distribute, sublicense, sell,
+reverse engineer, or create derivative works from this material without prior
+written authorization from Dressup Sesh.
+
+Third-party libraries and services remain subject to their respective terms
+and licenses. This notice does not restrict rights that cannot lawfully be
+restricted.
