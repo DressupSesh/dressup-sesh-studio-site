@@ -485,6 +485,11 @@ body.auth-pending .public-signin { visibility: hidden; }
 .text-button.hidden { display: none; }
 .wide { width: 100%; }
 .auth-message { min-height: 20px; text-align: center; color: var(--wine) !important; }
+.password-reset-shell { min-height: 100vh; display: grid; place-items: center; padding: 28px; background: radial-gradient(circle at 82% 10%, rgba(215, 234, 88, .3), transparent 25rem), var(--paper); }
+.password-reset-card { margin: 0; }
+.password-reset-card form { margin-top: 22px; }
+.password-reset-card .primary { margin-top: 20px; }
+.password-reset-card .auth-message { margin-bottom: 0; }
 
 .public-plans { margin-top: 100px; border-top: 1px solid var(--line); padding-top: 64px; }
 .public-plans > header { max-width: 760px; }

@@ -72,20 +72,17 @@
       const token = sessionData?.session?.access_token;
       if (!token) throw new Error('Back Room session is active but no access token was returned. Sign out once, then sign back in.');
 
-      const { data, error } = await client.functions.invoke('import-poshmark-item', {
-        body: { url },
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await fetch(`${cfg.supabaseUrl}/functions/v1/import-poshmark-item`, {
+        method: 'POST',
+        headers: {
+          apikey: cfg.supabasePublishableKey,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url })
       });
-      if (error) {
-        let message = error.message || 'Could not import that listing.';
-        try {
-          if (error.context && typeof error.context.json === 'function') {
-            const body = await error.context.json();
-            if (body?.error) message = body.error;
-          }
-        } catch (_) {}
-        throw new Error(message);
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Could not import that listing.');
       if (data?.error) throw new Error(data.error);
 
       if (data.canonicalUrl) urlInput.value = data.canonicalUrl;

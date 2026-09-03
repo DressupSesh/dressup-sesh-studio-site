@@ -42,7 +42,7 @@ const elements = {
   authButton: $("#auth-button"), authDialog: $("#auth-dialog"), authForm: $("#auth-form"),
   authEmail: $("#auth-email"), authPassword: $("#auth-password"), authMessage: $("#auth-message"),
   loginGate: $("#login-gate"), gateSignIn: $("#gate-signin"), gateCreate: $("#gate-create"), gateMessage: $("#gate-message"),
-  resendButton: $("#resend-button"),
+  forgotPasswordButton: $("#forgot-password-button"), resendButton: $("#resend-button"),
   usagePill: $("#usage-pill"), planButton: $("#plan-button"), paywallDialog: $("#paywall-dialog"),
   paywallSubscribe: $("#paywall-subscribe"),
   billingDialog: $("#billing-dialog"), billingClose: $("#billing-close"), billingPlanTitle: $("#billing-plan-title"),
@@ -299,6 +299,15 @@ if (billingReturn && state.session) {
     cleanUrl.searchParams.delete("billing");
     history.replaceState({}, "", cleanUrl);
   }
+}
+
+const passwordResetReturn = new URLSearchParams(window.location.search).get("password-reset");
+if (passwordResetReturn === "success") {
+  elements.authMessage.textContent = "Password updated. Sign in with your new password.";
+  if (!elements.authDialog.open) elements.authDialog.showModal();
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete("password-reset");
+  history.replaceState({}, "", cleanUrl);
 }
 
 function photoId(file) {
@@ -1606,6 +1615,27 @@ elements.authForm.addEventListener("submit", async (event) => {
     elements.authMessage.textContent = "Signed in.";
     setTimeout(() => elements.authDialog.close(), 450);
   }
+});
+
+elements.forgotPasswordButton.addEventListener("click", async () => {
+  if (!supabase) return;
+  const email = elements.authEmail.value.trim();
+  if (!email) {
+    elements.authMessage.textContent = "Enter your Studio account email first.";
+    elements.authEmail.focus();
+    return;
+  }
+  const captchaToken = getCaptchaToken(authCaptcha, elements.authMessage);
+  if (captchaToken === null) return;
+  elements.forgotPasswordButton.disabled = true;
+  elements.authMessage.textContent = "Sending password reset email…";
+  const redirectTo = new URL("studio-password-reset.html", getAuthRedirectUrl()).href;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo, captchaToken });
+  authCaptcha.reset();
+  elements.authMessage.textContent = error
+    ? error.message
+    : "If that Studio account exists, its password reset email is on the way.";
+  elements.forgotPasswordButton.disabled = false;
 });
 
 function getAuthRedirectUrl() {
