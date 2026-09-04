@@ -901,13 +901,21 @@ function canvasToJpeg(canvas, quality) {
 }
 
 async function prepareBackgroundImage(source) {
+  const supportedType = /^(image\/png|image\/jpeg|image\/webp)$/i.test(source.type);
+  if (supportedType && source.size <= 3.75 * 1024 * 1024) {
+    return new File([source], source.name || "product-photo", {
+      type: source.type,
+      lastModified: source.lastModified || Date.now()
+    });
+  }
+
   const image = await createImageBitmap(source);
-  let maxDimension = 1600;
-  let quality = 0.84;
+  let maxDimension = 2400;
+  let quality = 0.94;
   let blob = null;
 
   try {
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(image.width * scale));
@@ -917,24 +925,40 @@ async function prepareBackgroundImage(source) {
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       blob = await canvasToJpeg(canvas, quality);
-      if (blob.size <= 900 * 1024) break;
-      maxDimension = Math.round(maxDimension * 0.82);
-      quality = Math.max(0.66, quality - 0.06);
+      if (blob.size <= 3.75 * 1024 * 1024) break;
+      maxDimension = Math.round(maxDimension * 0.88);
+      quality = Math.max(0.78, quality - 0.04);
     }
   } finally {
     image.close();
   }
 
-  if (!blob) throw new Error("Could not prepare this photo.");
+  if (!blob || blob.size > 4 * 1024 * 1024) throw new Error("Could not prepare this photo.");
   return new File([blob], "product-photo.jpg", { type: "image/jpeg" });
+}
+
+async function applySelectedPhotoBackground(cleanedBlob) {
+  if (state.background === "transparent") return cleanedBlob;
+  const image = await createImageBitmap(cleanedBlob);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0);
+    return await canvasToPng(canvas);
+  } finally {
+    image.close();
+  }
 }
 
 async function removeBackgroundInCloud(photo) {
   if (!state.session) throw new Error("Sign in again before cleaning photos.");
   const compactImage = await prepareBackgroundImage(photo.file);
   const form = new FormData();
-  form.append("image", compactImage, "product-photo.jpg");
-  form.append("background", state.background);
+  form.append("image", compactImage, compactImage.name || "product-photo");
   form.append("client_item_id", state.clientItemId);
 
   const response = await fetch(`${config.supabaseUrl}/functions/v1/remove-product-background`, {
@@ -951,7 +975,7 @@ async function removeBackgroundInCloud(photo) {
     handleApiProblem(payload);
     throw new Error(payload.error || "The cloud cleanup could not be completed.");
   }
-  return await response.blob();
+  return applySelectedPhotoBackground(await response.blob());
 }
 
 async function processPhotos() {
