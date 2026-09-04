@@ -17,6 +17,7 @@ const state = {
   creativeReferenceUrl: "",
   creativeResults: [],
   creativeGenerating: false,
+  listingGenerating: false,
   editorPhotoId: null,
   editorImage: null,
   editorOriginalCanvas: null,
@@ -34,11 +35,14 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const elements = {
   input: $("#file-input"), dropzone: $("#dropzone"), grid: $("#photo-grid"),
-  count: $("#photo-count"), actionBar: $("#action-bar"), process: $("#process-button"), downloadAll: $("#download-all"), saveAll: $("#save-all"), saveOriginals: $("#save-originals"), clearAll: $("#clear-all"),
-  setupNote: $("#setup-note"), listingPanel: $("#listing-panel"), photosPanel: $("#photos-panel"), creativePanel: $("#creative-panel"),
+  count: $("#photo-count"), actionBar: $("#action-bar"), process: $("#process-button"), clearAll: $("#clear-all"),
+  studioIntro: $("#studio-intro"), goalTracker: $("#goal-tracker"), goalTrackerCopy: $("#goal-tracker-copy"),
+  photosTabStatus: $("#photos-tab-status"), listingTabStatus: $("#listing-tab-status"), creativeTabStatus: $("#creative-tab-status"),
+  saveAllAssets: $("#save-all-assets"), copyButton: $("#copy-all-global"),
+  listingPanel: $("#listing-panel"), photosPanel: $("#photos-panel"), creativePanel: $("#creative-panel"),
   emptyListing: $("#empty-listing"), listingLayout: $("#listing-layout"), sourceStrip: $("#source-strip"),
   listingButton: $("#listing-button"), listingNote: $("#listing-note"), listingAdditional: $("#listing-additional-info"), listingOutput: $("#listing-output"),
-  outputPlaceholder: $("#output-placeholder"), listingError: $("#listing-error"), copyButton: $("#copy-button"),
+  outputPlaceholder: $("#output-placeholder"), listingError: $("#listing-error"),
   authButton: $("#auth-button"), authDialog: $("#auth-dialog"), authForm: $("#auth-form"),
   authEmail: $("#auth-email"), authPassword: $("#auth-password"), authMessage: $("#auth-message"),
   loginGate: $("#login-gate"), gateSignIn: $("#gate-signin"), gateCreate: $("#gate-create"), gateMessage: $("#gate-message"),
@@ -90,6 +94,9 @@ if (configured) {
 function applyAccess(access) {
   if (!access) return;
   state.access = access;
+  const subscribed = Boolean(access.owner || access.paid);
+  document.body.classList.toggle("subscribed-studio", subscribed);
+  elements.goalTracker.classList.toggle("hidden", !subscribed);
   elements.usagePill.classList.remove("hidden");
   if (access.owner) {
     elements.usagePill.textContent = "UNLIMITED ACCESS";
@@ -101,6 +108,51 @@ function applyAccess(access) {
     elements.usagePill.textContent = `${remaining} FREE ITEM${remaining === 1 ? "" : "S"} LEFT`;
   }
   renderBilling(access);
+  updateWorkflowSignals();
+}
+
+function setTabStatus(element, status, label) {
+  if (!element) return;
+  element.dataset.status = status || "";
+  element.parentElement?.setAttribute("aria-label", label);
+}
+
+function updateWorkflowSignals() {
+  const hasPhotos = state.photos.length > 0;
+  const productPhotos = state.photos.filter((photo) => photo.preview && !photo.referenceOnly && !photo.error);
+  const photosReady = productPhotos.length > 0 && productPhotos.every((photo) => Boolean(photo.resultBlob));
+  const listingReady = Boolean(elements.listingOutput.textContent.trim());
+  const creativeReady = state.creativeResults.length > 0;
+
+  setTabStatus(
+    elements.photosTabStatus,
+    state.processing ? "processing" : photosReady ? "ready" : "",
+    `Photo Cleanup${state.processing ? ": processing" : photosReady ? ": assets ready" : ": nothing ready yet"}`
+  );
+  setTabStatus(
+    elements.listingTabStatus,
+    state.listingGenerating ? "processing" : listingReady ? "ready" : "",
+    `Listing Copy${state.listingGenerating ? ": processing" : listingReady ? ": assets ready" : ": nothing ready yet"}`
+  );
+  setTabStatus(
+    elements.creativeTabStatus,
+    state.creativeGenerating ? "processing" : creativeReady ? "ready" : "",
+    `Creative Images${state.creativeGenerating ? ": processing" : creativeReady ? ": assets ready" : ": nothing ready yet"}`
+  );
+
+  let goal = "Add product photos";
+  if (state.processing) goal = "Clean the uploaded photos";
+  else if (hasPhotos && !photosReady) goal = "Remove the photo backgrounds";
+  else if (photosReady && !listingReady) goal = "Create the listing copy";
+  else if (state.listingGenerating) goal = "Finish the listing copy";
+  else if (listingReady && !creativeReady) goal = "Create a campaign image or save the item";
+  else if (state.creativeGenerating) goal = "Finish the campaign image";
+  else if (photosReady && listingReady) goal = "Save all assets and start the next item";
+  elements.goalTrackerCopy.textContent = goal;
+
+  const hasSavableAssets = hasPhotos || listingReady || creativeReady;
+  elements.saveAllAssets.disabled = !hasSavableAssets || state.processing || state.creativeGenerating || state.listingGenerating;
+  elements.copyButton.disabled = !listingReady;
 }
 
 function renderBilling(access = state.access) {
@@ -182,6 +234,10 @@ async function refreshSession(session) {
   elements.usagePill.classList.toggle("hidden", !state.session);
   elements.planButton.classList.toggle("hidden", !state.session);
   if (access) applyAccess(access);
+  else {
+    document.body.classList.remove("subscribed-studio");
+    elements.goalTracker.classList.add("hidden");
+  }
   elements.gateMessage.textContent = session && !access
     ? "We couldn’t verify this account. Please sign in again."
     : "Try three complete items free, or sign in to continue.";
@@ -514,17 +570,8 @@ function render() {
   elements.actionBar.classList.toggle("hidden", !hasPhotos);
   elements.count.classList.toggle("hidden", !hasPhotos);
   elements.count.textContent = `${state.photos.length} PHOTO${state.photos.length === 1 ? "" : "S"}`;
-  const recordPhotos = savableRecordPhotos();
-  const editedPhotos = recordPhotos.filter(({ photo }) => !photo.referenceOnly);
-  const originalPhotos = originalRecordPhotos();
   elements.process.disabled = !configured || !state.session || !pendingCleanupPhotos.length || state.processing || isPreparing;
-  elements.downloadAll.disabled = !recordPhotos.length || state.processing || isPreparing;
-  elements.saveAll.disabled = !editedPhotos.length || state.processing || isPreparing;
-  elements.saveOriginals.disabled = !originalPhotos.length || state.processing || isPreparing;
   elements.clearAll.disabled = state.processing || state.creativeGenerating;
-  elements.downloadAll.textContent = recordPhotos.length ? `DOWNLOAD RECORD SET · ${recordPhotos.length}` : "DOWNLOAD RECORD SET";
-  elements.saveAll.textContent = editedPhotos.length ? `SAVE ALL EDITED · ${editedPhotos.length}` : "SAVE ALL EDITED";
-  elements.saveOriginals.textContent = originalPhotos.length ? `SAVE ALL ORIGINAL COPIES · ${originalPhotos.length}` : "SAVE ALL ORIGINAL COPIES";
   elements.process.textContent = state.processing
     ? `PROCESSING ${state.processedCount + 1} OF ${state.processingTotal}…`
     : isPreparing
@@ -563,7 +610,6 @@ function render() {
         : photo.error
           ? `<button class="photo-retry" type="button" data-retry="${photo.id}" ${state.processing ? "disabled" : ""}>TRY AGAIN</button>`
           : `<span>${Math.max(1, Math.round(photo.file.size / 1024))} KB</span>`}</div>
-      ${photo.file ? `<button class="original-save" type="button" data-save-original="${photo.id}">${photo.referenceOnly ? "SAVE UNEDITED COPY" : "SAVE ORIGINAL COPY"}</button>` : ""}
       <button class="reference-toggle ${photo.referenceOnly ? "selected" : ""}" type="button" data-reference-only="${photo.id}" ${!photo.preview || state.processing || state.creativeGenerating ? "disabled" : ""}>${photo.referenceOnly ? "REFERENCE ONLY ✓" : "MARK REFERENCE ONLY"}</button>
       ${photo.error ? `<p class="error-text">${photo.error}</p>` : ""}
     </article>`).join("") + (state.photos.length < 20 ? `<button class="add-card" id="add-more"><span>＋</span>Add more</button>` : "");
@@ -579,9 +625,9 @@ function render() {
   $$('[data-remove]').forEach((button) => button.addEventListener("click", () => removePhoto(button.dataset.remove)));
   $$('[data-edit]').forEach((button) => button.addEventListener("click", () => { void openPhotoEditor(button.dataset.edit); }));
   $$('[data-retry]').forEach((button) => button.addEventListener("click", () => { void processSinglePhoto(button.dataset.retry); }));
-  $$('[data-save-original]').forEach((button) => button.addEventListener("click", () => { void saveSingleOriginalPhoto(button.dataset.saveOriginal); }));
   $$('[data-reference-only]').forEach((button) => button.addEventListener("click", () => toggleReferenceOnly(button.dataset.referenceOnly)));
   $("#add-more")?.addEventListener("click", () => elements.input.click());
+  updateWorkflowSignals();
 }
 
 function canvasToPng(canvas) {
@@ -1235,6 +1281,51 @@ async function downloadAllPhotos() {
   }
 }
 
+async function saveAllItemAssets() {
+  if (typeof window.JSZip !== "function") {
+    window.alert("Save All is temporarily unavailable. Please try again.");
+    return;
+  }
+  const hasListing = Boolean(elements.listingOutput.textContent.trim());
+  if (!state.photos.length && !state.creativeResults.length && !hasListing) return;
+
+  elements.saveAllAssets.disabled = true;
+  elements.saveAllAssets.classList.add("working");
+  elements.saveAllAssets.setAttribute("aria-label", "Preparing all item assets");
+  try {
+    const zip = new window.JSZip();
+    const originals = zip.folder("01-original-photos");
+    const edited = zip.folder("02-edited-photos");
+    const creative = zip.folder("03-creative-images");
+
+    state.photos.forEach((photo, index) => {
+      const source = photo.originalFile || photo.file;
+      if (source) originals.file(originalFileName(photo, index, source), source);
+      if (photo.resultBlob) edited.file(resultFileName(photo, index), photo.resultBlob);
+    });
+    state.creativeResults.slice().reverse().forEach((result) => {
+      creative.file(result.filename, result.blob);
+    });
+    if (hasListing) zip.file("04-listing-copy.txt", `${elements.listingOutput.textContent.trim()}\n`);
+
+    const blob = await zip.generateAsync({
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 }
+    });
+    triggerDownload(blob, "dressup-sesh-item-assets.zip");
+    elements.saveAllAssets.classList.add("complete");
+  } catch (error) {
+    console.error("Save All failed", error);
+    window.alert("The item assets could not be packaged. Please try again.");
+  } finally {
+    elements.saveAllAssets.classList.remove("working");
+    elements.saveAllAssets.setAttribute("aria-label", "Save all item assets");
+    setTimeout(() => elements.saveAllAssets.classList.remove("complete"), 1400);
+    updateWorkflowSignals();
+  }
+}
+
 async function prepareListingImage(source) {
   const image = await createImageBitmap(source);
   const maxDimension = 1800;
@@ -1298,8 +1389,10 @@ async function createListing() {
     return;
   }
   elements.listingError.classList.add("hidden");
+  state.listingGenerating = true;
   elements.listingButton.disabled = true;
   elements.listingButton.textContent = "WRITING LISTING…";
+  updateWorkflowSignals();
   const body = new FormData();
   body.append("client_item_id", state.clientItemId);
   const additionalInfo = elements.listingAdditional.value.trim();
@@ -1338,8 +1431,10 @@ async function createListing() {
     elements.listingError.textContent = error?.message || "The listing could not be generated. Please try again.";
     elements.listingError.classList.remove("hidden");
   } finally {
+    state.listingGenerating = false;
     elements.listingButton.disabled = false;
     elements.listingButton.textContent = "CREATE TITLE + DESCRIPTION";
+    updateWorkflowSignals();
   }
 }
 
@@ -1426,9 +1521,7 @@ elements.dropzone.addEventListener("dragleave", () => elements.dropzone.classLis
 elements.dropzone.addEventListener("drop", (event) => { event.preventDefault(); elements.dropzone.classList.remove("dragging"); addFiles(event.dataTransfer.files); });
 elements.input.addEventListener("change", () => { addFiles(elements.input.files); elements.input.value = ""; });
 elements.process.addEventListener("click", processPhotos);
-elements.downloadAll.addEventListener("click", downloadAllPhotos);
-elements.saveAll.addEventListener("click", saveAllPhotos);
-elements.saveOriginals.addEventListener("click", saveAllOriginalPhotos);
+elements.saveAllAssets.addEventListener("click", saveAllItemAssets);
 elements.clearAll.addEventListener("click", clearAllPhotos);
 elements.listingButton.addEventListener("click", createListing);
 elements.emptyListing.addEventListener("click", () => { $("[data-tab='photos']").click(); elements.input.click(); });
@@ -1461,8 +1554,12 @@ elements.editorApply.addEventListener("click", () => {
 elements.editorDialog.addEventListener("close", releasePhotoEditor);
 elements.copyButton.addEventListener("click", async () => {
   await navigator.clipboard.writeText(elements.listingOutput.textContent);
-  elements.copyButton.textContent = "COPIED";
-  setTimeout(() => { elements.copyButton.textContent = "COPY ALL"; }, 1200);
+  elements.copyButton.classList.add("complete");
+  elements.copyButton.setAttribute("aria-label", "Listing text copied");
+  setTimeout(() => {
+    elements.copyButton.classList.remove("complete");
+    elements.copyButton.setAttribute("aria-label", "Copy listing text");
+  }, 1200);
 });
 
 $$('[data-tab]').forEach((button) => button.addEventListener("click", () => {
