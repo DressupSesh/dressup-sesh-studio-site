@@ -445,6 +445,7 @@ function addFiles(fileList) {
     id: photoId(file),
     originalFile: file,
     file,
+    normalizedFile: null,
     preview: "",
     status: isHeicFile(file) ? "converting" : "preparing",
     statusLabel: isHeicFile(file) ? "preparing iPhone photo" : "preparing",
@@ -901,26 +902,46 @@ function canvasToJpeg(canvas, quality) {
 }
 
 async function prepareBackgroundImage(source) {
-  const supportedType = /^(image\/png|image\/jpeg|image\/webp)$/i.test(source.type);
-  if (supportedType && source.size <= 3.75 * 1024 * 1024) {
-    return new File([source], source.name || "product-photo", {
-      type: source.type,
-      lastModified: source.lastModified || Date.now()
-    });
-  }
-
-  const image = await createImageBitmap(source);
+  let image = null;
+  let objectUrl = "";
   let maxDimension = 2400;
   let quality = 0.94;
   let blob = null;
 
   try {
+    if (typeof window.createImageBitmap === "function") {
+      try {
+        // Apply phone-camera EXIF orientation before the pixels leave the
+        // browser. Canvas re-encoding below then strips the orientation tag.
+        image = await window.createImageBitmap(source, { imageOrientation: "from-image" });
+      } catch {
+        // Older Safari/WebViews may not support the imageOrientation option.
+        // HTMLImageElement decoding provides the safest available fallback.
+      }
+    }
+
+    if (!image) {
+      objectUrl = URL.createObjectURL(source);
+      const fallbackImage = new Image();
+      fallbackImage.decoding = "async";
+      fallbackImage.src = objectUrl;
+      await fallbackImage.decode();
+      image = fallbackImage;
+    }
+
+    const sourceWidth = image.width || image.naturalWidth;
+    const sourceHeight = image.height || image.naturalHeight;
+    if (!sourceWidth || !sourceHeight) throw new Error("Could not read this photo.");
+
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+      const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
       const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
+      canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+      canvas.height = Math.max(1, Math.round(sourceHeight * scale));
       const context = canvas.getContext("2d");
+      if (!context) throw new Error("Could not prepare this photo.");
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -930,11 +951,16 @@ async function prepareBackgroundImage(source) {
       quality = Math.max(0.78, quality - 0.04);
     }
   } finally {
-    image.close();
+    if (typeof image?.close === "function") image.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 
   if (!blob || blob.size > 4 * 1024 * 1024) throw new Error("Could not prepare this photo.");
-  return new File([blob], "product-photo.jpg", { type: "image/jpeg" });
+  const baseName = (source.name || "product-photo").replace(/\.[^.]+$/, "") || "product-photo";
+  return new File([blob], `${baseName}-normalized.jpg`, {
+    type: "image/jpeg",
+    lastModified: Date.now()
+  });
 }
 
 async function applySelectedPhotoBackground(cleanedBlob) {
@@ -956,7 +982,10 @@ async function applySelectedPhotoBackground(cleanedBlob) {
 
 async function removeBackgroundInCloud(photo) {
   if (!state.session) throw new Error("Sign in again before cleaning photos.");
-  const compactImage = await prepareBackgroundImage(photo.file);
+  // Cache the normalized bytes for this item. Reprocess must send the exact
+  // same pixels instead of creating a newly encoded variation each time.
+  const compactImage = photo.normalizedFile || await prepareBackgroundImage(photo.file);
+  photo.normalizedFile = compactImage;
   const form = new FormData();
   form.append("image", compactImage, compactImage.name || "product-photo");
   form.append("client_item_id", state.clientItemId);
