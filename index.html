@@ -244,16 +244,29 @@
       </div>
     </header>
 
-    <section class="intro">
+    <section class="intro" id="studio-intro">
       <p class="eyebrow">THE FAST TRACK FROM CAMERA ROLL TO CLOSET</p>
       <h1>Clean photos. Sharp copy.<br>Ready to list.</h1>
       <p class="lede">Upload a full product set once. Get every photo back separately—plus marketplace-ready title and description copy in your exact format.</p>
     </section>
 
+    <div class="goal-tracker hidden" id="goal-tracker" aria-live="polite">
+      <span class="goal-label">CURRENT GOAL</span>
+      <strong id="goal-tracker-copy">Add product photos</strong>
+    </div>
+
     <nav class="mode-tabs" aria-label="Studio mode">
-      <button class="active" data-tab="photos">01 · PHOTO CLEANUP</button>
-      <button data-tab="listing">02 · LISTING COPY</button>
-      <button data-tab="creative">03 · CREATIVE IMAGES</button>
+      <button class="active" data-tab="photos"><span class="tab-status" id="photos-tab-status" aria-hidden="true"></span><span>01 · PHOTO CLEANUP</span></button>
+      <button data-tab="listing"><span class="tab-status" id="listing-tab-status" aria-hidden="true"></span><span>02 · LISTING COPY</span></button>
+      <button data-tab="creative"><span class="tab-status" id="creative-tab-status" aria-hidden="true"></span><span>03 · CREATIVE IMAGES</span></button>
+      <div class="workflow-tools" aria-label="Item actions">
+        <button class="workflow-icon" id="save-all-assets" type="button" aria-label="Save all item assets" title="Save all item assets" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg>
+        </button>
+        <button class="workflow-icon" id="copy-all-global" type="button" aria-label="Copy listing text" title="Copy listing text" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="1"/><path d="M16 8V5H5v11h3"/></svg>
+        </button>
+      </div>
     </nav>
 
     <section class="workspace" id="photos-panel">
@@ -272,29 +285,13 @@
       <div class="photo-grid hidden" id="photo-grid"></div>
 
       <div class="action-bar hidden" id="action-bar">
-        <div class="processing-options">
-          <div class="background-choice">
-            <span>BACKGROUND</span>
-            <button class="selected" data-background="white"><i class="white-swatch"></i> White</button>
-            <button data-background="transparent"><i class="transparent-swatch"></i> Transparent</button>
-          </div>
-          <div class="cloud-choice">
-            <span>PROCESSING</span>
-            <strong>CLOUD · FAST &amp; PHONE-FRIENDLY</strong>
-          </div>
-        </div>
         <div class="action-buttons">
           <button class="clear-all" id="clear-all" type="button">CLEAR ALL · NEW ITEM</button>
-          <button class="save-all" id="save-originals" type="button" disabled>SAVE ALL ORIGINAL COPIES</button>
-          <button class="save-all" id="save-all" type="button" disabled>SAVE ALL EDITED</button>
-          <button class="download-all" id="download-all" disabled>DOWNLOAD RECORD SET</button>
           <button class="primary" id="process-button" disabled>REMOVE BACKGROUNDS</button>
         </div>
-        <p class="save-hint">Save All Original Copies makes fresh copies that appear beside your newly saved edited photos. Save All Edited includes only finished background-removal results. Download Record Set preserves the exact uploaded files.</p>
       </div>
 
       <p class="setup-guidance">Upload the photos you want cleaned. Mark labels, measurements or detail shots as Reference Only.</p>
-      <details class="setup-note technical-details" id="setup-note"><summary>HOW IT WORKS</summary><div><strong>Cloud cleanup, prepared by your browser.</strong><span>Your device converts and resizes photos first. When you press Remove Backgrounds, selected photos are securely sent for processing and returned to this page. Reference Only photos skip cleanup and their facts are prioritized for copy and creative accuracy.</span></div></details>
     </section>
 
     <section class="workspace hidden" id="creative-panel">
@@ -337,7 +334,7 @@
           <div class="output-head"><span>GENERATED OUTPUTS</span><span id="creative-count"></span></div>
           <div class="creative-placeholder" id="creative-placeholder"><span>DS</span><p>Every generated image for this item will stay here until you choose Clear All · New Item.</p></div>
           <div class="creative-results hidden" id="creative-results"></div>
-          <button class="save-all creative-save-all hidden" id="creative-save-all" type="button" disabled>SAVE ALL CREATIVE TO PHOTOS</button>
+          <button class="save-all creative-save-all hidden" id="creative-save-all" type="button" disabled aria-hidden="true" tabindex="-1">SAVE ALL CREATIVE TO PHOTOS</button>
         </div>
       </div>
     </section>
@@ -356,7 +353,7 @@
           <p class="microcopy" id="listing-note">Sign in to activate listing generation.</p>
         </div>
         <div class="listing-output">
-          <div class="output-head"><span>COPY-READY OUTPUT</span><button id="copy-button" disabled>COPY ALL</button></div>
+          <div class="output-head"><span>COPY-READY OUTPUT</span></div>
           <div class="output-placeholder" id="output-placeholder"><span>DS</span><p>Your exact <strong>Title + Description</strong> format will appear here—nothing extra.</p></div>
           <pre class="hidden" id="listing-output"></pre>
           <p class="error-text hidden" id="listing-error">The listing could not be generated. Please try again.</p>
@@ -377,8 +374,8 @@
       <div class="turnstile-wrap" id="auth-turnstile" hidden aria-label="Security verification"></div>
       <button class="primary wide" type="submit">SIGN IN</button>
     </form>
+    <button class="text-button" id="forgot-password-button" type="button">RESET PASSWORD</button>
     <button class="secondary wide" id="signup-button">CREATE FREE ACCOUNT</button>
-    <button class="text-button" id="forgot-password-button" type="button">FORGOT PASSWORD?</button>
     <button class="text-button hidden" id="resend-button" type="button">RESEND CONFIRMATION EMAIL</button>
     <p class="auth-message" id="auth-message"></p>
   </dialog>
