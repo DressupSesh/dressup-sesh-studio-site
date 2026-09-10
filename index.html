@@ -389,11 +389,11 @@
   <dialog class="auth-dialog" id="auth-dialog">
     <button class="dialog-close" id="dialog-close" aria-label="Close sign-in">×</button>
     <p class="eyebrow">STUDIO ACCESS</p>
-    <h2>Sign in to your studio</h2>
-    <p>Use an existing account or create one to process your first three items free.</p>
+    <h2 id="auth-title">Sign in to your studio</h2>
+    <p id="auth-description">Use an existing account or create one to process your first three items free.</p>
     <form id="auth-form">
       <label>Email<input id="auth-email" type="email" autocomplete="email" required></label>
-      <label>Password<input id="auth-password" type="password" autocomplete="current-password" minlength="8" required></label>
+      <label>Password<input id="auth-password" type="password" autocomplete="current-password" minlength="9" required></label>
       <div class="turnstile-wrap" id="auth-turnstile" hidden aria-label="Security verification"></div>
       <button class="primary wide" type="submit">SIGN IN</button>
     </form>
@@ -460,6 +460,6 @@
   <script src="landing.js?v=mobile-compact-1"></script>
   <script src="mobile-save.js?v=1"></script>
   <script src="page-actions.js?v=1"></script>
-  <script type="module" src="app.js?v=image-orientation-1"></script>
+  <script type="module" src="app.js?v=auth-plan-1"></script>
 </body>
 </html>
