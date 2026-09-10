@@ -3,6 +3,27 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 const config = window.DRESSUP_CONFIG || {};
 const configured = Boolean(config.supabaseUrl && config.supabasePublishableKey);
 const supabase = configured ? createClient(config.supabaseUrl, config.supabasePublishableKey) : null;
+const PENDING_AUTH_ACTION_KEY = "dressupSeshPendingAuthAction";
+const PENDING_CONFIRMATION_EMAIL_KEY = "dressupSeshPendingConfirmationEmail";
+
+function readSessionValue(key) {
+  try {
+    return window.sessionStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeSessionValue(key, value) {
+  try {
+    if (value) window.sessionStorage.setItem(key, value);
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    // The flow still works when browser storage is unavailable.
+  }
+}
+
+const requestedAuthIntent = new URLSearchParams(window.location.search).get("intent");
 const state = {
   photos: [],
   clientItemId: crypto.randomUUID(),
@@ -28,7 +49,9 @@ const state = {
   editorZoom: 1,
   editorBaseDisplayWidth: 0,
   editorPanStart: null,
-  pendingConfirmationEmail: ""
+  pendingConfirmationEmail: readSessionValue(PENDING_CONFIRMATION_EMAIL_KEY),
+  pendingAuthAction: requestedAuthIntent === "subscribe" ? "subscribe" : readSessionValue(PENDING_AUTH_ACTION_KEY),
+  checkoutContinuing: false
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -44,6 +67,7 @@ const elements = {
   listingButton: $("#listing-button"), listingNote: $("#listing-note"), listingAdditional: $("#listing-additional-info"), listingOutput: $("#listing-output"),
   outputPlaceholder: $("#output-placeholder"), listingError: $("#listing-error"),
   authButton: $("#auth-button"), authDialog: $("#auth-dialog"), authForm: $("#auth-form"),
+  authTitle: $("#auth-title"), authDescription: $("#auth-description"), signupButton: $("#signup-button"),
   authEmail: $("#auth-email"), authPassword: $("#auth-password"), authMessage: $("#auth-message"),
   loginGate: $("#login-gate"), gateSignIn: $("#gate-signin"), gateCreate: $("#gate-create"), gateMessage: $("#gate-message"),
   forgotPasswordButton: $("#forgot-password-button"), resendButton: $("#resend-button"),
@@ -77,6 +101,27 @@ function getCaptchaToken(captcha, messageElement) {
     return null;
   }
   return token;
+}
+
+function setPendingAuthAction(action = "") {
+  state.pendingAuthAction = action === "subscribe" ? "subscribe" : "";
+  writeSessionValue(PENDING_AUTH_ACTION_KEY, state.pendingAuthAction);
+}
+
+function updateAuthDialogCopy() {
+  const subscribing = state.pendingAuthAction === "subscribe";
+  elements.authTitle.textContent = subscribing ? "Create your account to subscribe" : "Sign in to your studio";
+  elements.authDescription.textContent = subscribing
+    ? "Create an account or sign in. After email confirmation, we’ll take you directly to secure checkout."
+    : "Use an existing account or create one to process your first three items free.";
+  elements.signupButton.textContent = subscribing ? "CREATE ACCOUNT & CONTINUE" : "CREATE FREE ACCOUNT";
+}
+
+function captchaFailureMessage(error) {
+  const message = String(error?.message || "");
+  return /captcha|invalid-input-response/i.test(message)
+    ? "The security check expired. Complete the new check, then try again."
+    : message;
 }
 
 const creativeLabels = {
@@ -243,6 +288,7 @@ async function refreshSession(session) {
     : "Try three complete items free, or sign in to continue.";
   if (configured) $("#connection-copy").textContent = state.session ? "Studio ready" : "Sign in required";
   render();
+  if (state.session) void continuePendingCheckout();
 }
 
 async function invokeStudioFunction(name, body = {}) {
@@ -280,6 +326,15 @@ async function beginCheckout(functionName, button) {
     button.disabled = false;
     button.textContent = original;
   }
+}
+
+async function continuePendingCheckout() {
+  if (!state.session || state.pendingAuthAction !== "subscribe" || state.checkoutContinuing) return;
+  state.checkoutContinuing = true;
+  setPendingAuthAction("");
+  if (elements.authDialog.open) elements.authDialog.close();
+  await beginCheckout("create-checkout-session", elements.billingSubscribe);
+  state.checkoutContinuing = false;
 }
 
 async function joinProWaitlist(email, button, messageElement) {
@@ -1668,20 +1723,26 @@ $$('[data-background]').forEach((button) => button.addEventListener("click", () 
   render();
 }));
 
-function openAuthDialog() {
+function openAuthDialog(action) {
+  if (action === "subscribe") setPendingAuthAction("subscribe");
+  if (action === "trial") setPendingAuthAction("");
+  updateAuthDialogCopy();
   elements.authMessage.textContent = "";
+  if (state.pendingConfirmationEmail) {
+    elements.authEmail.value = state.pendingConfirmationEmail;
+    elements.resendButton.classList.remove("hidden");
+  }
   elements.authDialog.showModal();
 }
 
-elements.gateSignIn.addEventListener("click", openAuthDialog);
-elements.gateCreate.addEventListener("click", openAuthDialog);
+elements.gateSignIn.addEventListener("click", () => openAuthDialog());
+elements.gateCreate.addEventListener("click", () => openAuthDialog("trial"));
 
 elements.authButton.addEventListener("click", async () => {
   if (state.session && supabase) {
     await supabase.auth.signOut();
   } else {
-    elements.authMessage.textContent = "";
-    elements.authDialog.showModal();
+    openAuthDialog();
   }
 });
 
@@ -1717,12 +1778,11 @@ $$('[data-open-plan]').forEach((button) => button.addEventListener("click", () =
   const action = button.dataset.openPlan;
   if (action === "trial") {
     if (state.session) window.location.hash = "top";
-    else openAuthDialog();
+    else openAuthDialog("trial");
     return;
   }
   if (!state.session) {
-    elements.authMessage.textContent = "Create your free account or sign in to continue.";
-    elements.authDialog.showModal();
+    openAuthDialog(action === "subscribe" ? "subscribe" : undefined);
     return;
   }
   if (action === "subscribe") {
@@ -1788,13 +1848,14 @@ elements.forgotPasswordButton.addEventListener("click", async () => {
   elements.forgotPasswordButton.disabled = false;
 });
 
-function getAuthRedirectUrl() {
+function getAuthRedirectUrl(intent = "") {
   const redirect = new URL(window.location.href);
   redirect.hash = "";
   redirect.search = "";
   if (!redirect.pathname.endsWith("/")) {
     redirect.pathname = redirect.pathname.replace(/[^/]+$/, "");
   }
+  if (intent === "subscribe") redirect.searchParams.set("intent", "subscribe");
   return redirect.toString();
 }
 
@@ -1806,8 +1867,8 @@ $("#signup-button").addEventListener("click", async () => {
     return;
   }
   const password = elements.authPassword.value;
-  if (password.length < 14 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
-    elements.authMessage.textContent = "New passwords need at least 14 characters with uppercase, lowercase, a number, and a symbol.";
+  if (password.length < 9 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    elements.authMessage.textContent = "New passwords need at least 9 characters with uppercase, lowercase, a number, and a symbol.";
     return;
   }
   const captchaToken = getCaptchaToken(authCaptcha, elements.authMessage);
@@ -1816,18 +1877,25 @@ $("#signup-button").addEventListener("click", async () => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: getAuthRedirectUrl(), captchaToken },
+    options: { emailRedirectTo: getAuthRedirectUrl(state.pendingAuthAction), captchaToken },
   });
   authCaptcha.reset();
   if (error) {
-    elements.authMessage.textContent = error.message;
+    elements.authMessage.textContent = captchaFailureMessage(error);
   } else if (!data.session) {
     state.pendingConfirmationEmail = email;
+    writeSessionValue(PENDING_CONFIRMATION_EMAIL_KEY, email);
     elements.resendButton.classList.remove("hidden");
-    elements.authMessage.textContent = `Confirmation sent to ${email}. Open the newest email, then return here to sign in.`;
+    elements.authMessage.textContent = state.pendingAuthAction === "subscribe"
+      ? `Confirmation sent to ${email}. Use the newest email link; checkout will open after you sign in.`
+      : `Confirmation sent to ${email}. Open the newest email, then return here to sign in.`;
   } else {
-    elements.authMessage.textContent = "Your free studio account is ready.";
-    setTimeout(() => elements.authDialog.close(), 650);
+    state.pendingConfirmationEmail = "";
+    writeSessionValue(PENDING_CONFIRMATION_EMAIL_KEY, "");
+    elements.authMessage.textContent = state.pendingAuthAction === "subscribe"
+      ? "Your account is ready. Opening secure checkout…"
+      : "Your free studio account is ready.";
+    if (state.pendingAuthAction !== "subscribe") setTimeout(() => elements.authDialog.close(), 650);
   }
 });
 
@@ -1840,16 +1908,23 @@ elements.resendButton.addEventListener("click", async () => {
   }
   const captchaToken = getCaptchaToken(authCaptcha, elements.authMessage);
   if (captchaToken === null) return;
+  elements.resendButton.disabled = true;
   elements.authMessage.textContent = "Sending a new confirmation email…";
   const { error } = await supabase.auth.resend({
     type: "signup",
     email,
-    options: { emailRedirectTo: getAuthRedirectUrl(), captchaToken },
+    options: { emailRedirectTo: getAuthRedirectUrl(state.pendingAuthAction), captchaToken },
   });
   authCaptcha.reset();
+  elements.resendButton.disabled = false;
   elements.authMessage.textContent = error
-    ? error.message
+    ? captchaFailureMessage(error)
     : `A new confirmation email was sent to ${email}. Use the newest link only.`;
 });
 
+updateAuthDialogCopy();
+if (state.pendingConfirmationEmail) {
+  elements.authEmail.value = state.pendingConfirmationEmail;
+  elements.resendButton.classList.remove("hidden");
+}
 render();
