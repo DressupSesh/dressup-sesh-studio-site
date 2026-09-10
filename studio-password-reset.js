@@ -33,8 +33,8 @@
     const p1 = password.value;
     const p2 = confirmation.value;
     if (p1 !== p2) return show('Passwords do not match.', true);
-    if (p1.length < 14 || !/[a-z]/.test(p1) || !/[A-Z]/.test(p1) || !/\d/.test(p1) || !/[^A-Za-z0-9]/.test(p1)) {
-      return show('Use at least 14 characters with uppercase, lowercase, a number, and a symbol.', true);
+    if (p1.length < 9 || !/[a-z]/.test(p1) || !/[A-Z]/.test(p1) || !/\d/.test(p1) || !/[^A-Za-z0-9]/.test(p1)) {
+      return show('Use at least 9 characters with uppercase, lowercase, a number, and a symbol.', true);
     }
 
     submit.disabled = true;
