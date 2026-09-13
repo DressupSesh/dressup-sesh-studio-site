@@ -6,7 +6,7 @@
   <meta name="description" content="AI-powered product photo cleanup, marketplace listing copy and creative images for online resellers.">
   <title>Dressup Sesh Studio</title>
   <link rel="stylesheet" href="styles.css?v=mobile-final-2">
-  <link rel="stylesheet" href="auth.css?v=stripe-beta-1">
+  <link rel="stylesheet" href="auth.css?v=credit-balances-1">
   <style>
     .cloud-choice{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .cloud-choice>span{min-width:72px;margin-right:6px;font-size:9px;font-weight:800;letter-spacing:.15em}
@@ -190,13 +190,13 @@
             <article class="plan-card">
               <p class="eyebrow">FREE STUDIO TRIAL</p>
               <h3>3 items</h3>
-              <p>Per item: up to 15 background removals, three copy generations and two creative images.</p>
+              <p>Across your three free listings: 15 background removals, three copy generations and three creative images.</p>
               <button class="secondary wide" type="button" data-open-plan="trial">TRY 3 ITEMS FREE</button>
             </article>
             <article class="plan-card featured">
               <p class="eyebrow">PRIVATE BETA</p>
               <h3>$12.99 <small>/ month</small></h3>
-              <p>20 items, 250 background removals, 25 copy generations and 25 creative images each month.</p>
+              <p>Approximately 20 listings each month, powered by 250 background removals, 25 copy generations and 25 creative images.</p>
               <button class="primary wide" type="button" data-open-plan="subscribe">SUBSCRIBE TO PRIVATE BETA</button>
               <small>Use BETA50 at checkout for 50% off your first month through September 30.</small>
             </article>
@@ -406,7 +406,7 @@
     <button class="dialog-close" id="paywall-close" aria-label="Close">×</button>
     <p class="eyebrow">FREE TRIAL COMPLETE</p>
     <h2>You created three complete items.</h2>
-    <p>Your work is still yours to save and download. Continue with 20 items each month in the Private Beta.</p>
+    <p>Your work is still yours to save and download. Continue with approximately 20 listings each month in the Private Beta.</p>
     <button class="primary wide" id="paywall-subscribe" type="button">SUBSCRIBE · $12.99 / MONTH</button>
     <button class="text-button" id="paywall-done" type="button">NOT NOW</button>
   </dialog>
@@ -415,10 +415,15 @@
     <p class="eyebrow">YOUR STUDIO PLAN</p>
     <h2 id="billing-plan-title">Free Studio Trial</h2>
     <p id="billing-summary">Three complete items are included.</p>
-    <div class="billing-balance">
-      <div><span>ITEMS REMAINING</span><strong id="billing-items">3</strong></div>
-      <div><span>EXTRA CREATIVE</span><strong id="billing-credits">0</strong></div>
+    <div class="billing-balance" id="billing-items-row">
+      <div><span>FREE LISTINGS REMAINING</span><strong id="billing-items">3</strong></div>
     </div>
+    <div class="billing-balance hidden" id="billing-credit-rows">
+      <div><span>PHOTO CLEANUP</span><strong id="billing-background">0</strong></div>
+      <div><span>LISTING COPY</span><strong id="billing-copy">0</strong></div>
+      <div><span>CREATIVE IMAGES</span><strong id="billing-creative">0</strong></div>
+    </div>
+    <p class="billing-message hidden" id="billing-bonus-note"></p>
     <button class="primary wide" id="billing-subscribe" type="button">SUBSCRIBE · $12.99 / MONTH</button>
     <button class="secondary wide hidden" id="billing-add-credits" type="button">ADD 10 CREATIVE IMAGES · $2.99</button>
     <button class="text-button hidden" id="billing-manage" type="button">MANAGE SUBSCRIPTION</button>
@@ -460,6 +465,6 @@
   <script src="landing.js?v=mobile-compact-1"></script>
   <script src="mobile-save.js?v=1"></script>
   <script src="page-actions.js?v=1"></script>
-  <script type="module" src="app.js?v=auth-plan-1"></script>
+  <script type="module" src="app.js?v=credit-balances-1"></script>
 </body>
 </html>
