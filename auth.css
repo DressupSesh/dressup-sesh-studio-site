@@ -512,7 +512,8 @@ body.auth-pending .public-signin { visibility: hidden; }
 .billing-dialog::backdrop { background: rgba(23, 22, 20, .62); backdrop-filter: blur(3px); }
 .billing-dialog h2 { margin: 0; font: 500 clamp(36px, 7vw, 52px)/1 Georgia, serif; letter-spacing: -.035em; }
 .billing-dialog > p:not(.eyebrow):not(.billing-message) { color: var(--muted); font-size: 13px; line-height: 1.6; }
-.billing-balance { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 24px 0; }
+.billing-balance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 24px 0; }
+#billing-items-row { grid-template-columns: 1fr; }
 .billing-balance div { border: 1px solid var(--line); background: white; padding: 16px; }
 .billing-balance span,.billing-balance strong { display: block; }
 .billing-balance span { font-size: 8px; font-weight: 800; letter-spacing: .1em; }
@@ -565,6 +566,7 @@ body.auth-pending .public-signin { visibility: hidden; }
 
 @media (max-width: 560px) {
   .public-topbar .brand small { display: none; }
+  .billing-balance { grid-template-columns: 1fr; }
   .public-signin { padding: 10px 12px; }
   .public-hero h1 { font-size: clamp(48px, 15vw, 68px); }
   .gate-actions .primary { width: 100%; min-width: 0; }
