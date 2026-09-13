@@ -74,7 +74,9 @@ const elements = {
   usagePill: $("#usage-pill"), planButton: $("#plan-button"), paywallDialog: $("#paywall-dialog"),
   paywallSubscribe: $("#paywall-subscribe"),
   billingDialog: $("#billing-dialog"), billingClose: $("#billing-close"), billingPlanTitle: $("#billing-plan-title"),
-  billingSummary: $("#billing-summary"), billingItems: $("#billing-items"), billingCredits: $("#billing-credits"),
+  billingSummary: $("#billing-summary"), billingItemsRow: $("#billing-items-row"), billingItems: $("#billing-items"),
+  billingCreditRows: $("#billing-credit-rows"), billingBackground: $("#billing-background"),
+  billingCopy: $("#billing-copy"), billingCreative: $("#billing-creative"), billingBonusNote: $("#billing-bonus-note"),
   billingSubscribe: $("#billing-subscribe"), billingAddCredits: $("#billing-add-credits"), billingManage: $("#billing-manage"),
   billingMessage: $("#billing-message"), billingProWaitlist: $("#billing-pro-waitlist"), proWaitlistForm: $("#pro-waitlist-form"),
   proWaitlistEmail: $("#pro-waitlist-email"), proWaitlistMessage: $("#pro-waitlist-message"),
@@ -146,8 +148,11 @@ function applyAccess(access) {
   if (access.owner) {
     elements.usagePill.textContent = "UNLIMITED ACCESS";
   } else if (access.paid) {
-    const remaining = Math.max(0, Number(access.items_remaining || 0));
-    elements.usagePill.textContent = `${remaining} ITEM${remaining === 1 ? "" : "S"} LEFT`;
+    const background = Math.max(0, Number(access.background_remaining || 0));
+    const copy = Math.max(0, Number(access.copy_remaining || 0));
+    const creative = Math.max(0, Number(access.creative_remaining || 0));
+    elements.usagePill.textContent = `BG ${background} · COPY ${copy} · CREATIVE ${creative}`;
+    elements.usagePill.setAttribute("aria-label", `${background} photo cleanup, ${copy} listing copy, and ${creative} creative image credits available`);
   } else {
     const remaining = Math.max(0, Number(access.items_remaining || 0));
     elements.usagePill.textContent = `${remaining} FREE ITEM${remaining === 1 ? "" : "S"} LEFT`;
@@ -204,18 +209,34 @@ function renderBilling(access = state.access) {
   if (!access) return;
   const paid = Boolean(access.paid);
   const owner = Boolean(access.owner);
-  const remaining = owner ? "∞" : Math.max(0, Number(access.items_remaining || 0));
-  const credits = Math.max(0, Number(access.purchased_creative_credits || 0));
-  elements.billingItems.textContent = String(remaining);
-  elements.billingCredits.textContent = String(credits);
+  const itemsRemaining = owner ? "∞" : Math.max(0, Number(access.items_remaining || 0));
+  const backgroundRemaining = owner ? "∞" : Math.max(0, Number(access.background_remaining || 0));
+  const copyRemaining = owner ? "∞" : Math.max(0, Number(access.copy_remaining || 0));
+  const creativeRemaining = owner ? "∞" : Math.max(0, Number(access.creative_remaining || 0));
+  const bonusBackground = Math.max(0, Number(access.bonus_background_credits || 0));
+  const bonusCopy = Math.max(0, Number(access.bonus_copy_credits || 0));
+  const bonusCreative = Math.max(0, Number(access.bonus_creative_credits || 0));
+  const bonusTotal = bonusBackground + bonusCopy + bonusCreative;
+
+  elements.billingItems.textContent = String(itemsRemaining);
+  elements.billingBackground.textContent = String(backgroundRemaining);
+  elements.billingCopy.textContent = String(copyRemaining);
+  elements.billingCreative.textContent = String(creativeRemaining);
+  elements.billingItemsRow.classList.toggle("hidden", owner || paid);
+  elements.billingCreditRows.classList.toggle("hidden", !owner && !paid);
+  elements.billingBonusNote.classList.toggle("hidden", !paid || bonusTotal === 0);
+  elements.billingBonusNote.textContent = bonusTotal > 0
+    ? `Includes saved trial credits: ${bonusBackground} photo cleanup, ${bonusCopy} copy and ${bonusCreative} creative.`
+    : "";
+
   elements.billingPlanTitle.textContent = owner ? "Studio Owner" : paid ? "Private Beta" : "Free Studio Trial";
   elements.billingSummary.textContent = owner
     ? "Unlimited Studio access is active."
     : paid
       ? access.cancel_at_period_end
         ? `Your plan remains active through ${formatBillingDate(access.current_period_end)}.`
-        : "Your monthly allowance includes 20 items, 25 copy generations and 25 creative images."
-      : "Three complete items are included. Subscribe whenever you are ready to keep listing.";
+        : "Your monthly credits are designed for approximately 20 complete listings, including room for a few retries."
+      : "Three free listings share 15 photo cleanups, 3 copy generations and 3 creative images.";
   elements.billingSubscribe.classList.toggle("hidden", owner || paid);
   elements.billingAddCredits.classList.toggle("hidden", owner || !paid);
   elements.billingManage.classList.toggle("hidden", owner || !paid);
@@ -234,7 +255,6 @@ function showPaywall() {
 function handleApiProblem(problem = {}) {
   if (problem.access) applyAccess(problem.access);
   if (problem.code === "TRIAL_EXHAUSTED") showPaywall();
-  if (problem.code === "ITEM_LIMIT") openBilling("You’ve used the 20 items included in this billing period.");
   if (problem.code === "OPERATION_LIMIT" && problem.access?.operation === "creative_image" && state.access?.paid) {
     openBilling("You’ve used the creative images included this month. Add 10 more whenever you need them.");
   }
