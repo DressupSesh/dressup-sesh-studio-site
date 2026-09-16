@@ -61,7 +61,7 @@ const elements = {
   count: $("#photo-count"), actionBar: $("#action-bar"), process: $("#process-button"), clearAll: $("#clear-all"),
   studioIntro: $("#studio-intro"), goalTracker: $("#goal-tracker"), goalTrackerCopy: $("#goal-tracker-copy"),
   photosTabStatus: $("#photos-tab-status"), listingTabStatus: $("#listing-tab-status"), creativeTabStatus: $("#creative-tab-status"),
-  saveAllAssets: $("#save-all-assets"), copyButton: $("#copy-all-global"),
+  saveAllAssets: $("#save-all-assets"), saveAllMobile: $("#save-all-mobile"), copyButton: $("#copy-all-global"),
   listingPanel: $("#listing-panel"), photosPanel: $("#photos-panel"), creativePanel: $("#creative-panel"),
   emptyListing: $("#empty-listing"), listingLayout: $("#listing-layout"), sourceStrip: $("#source-strip"),
   listingButton: $("#listing-button"), listingNote: $("#listing-note"), listingAdditional: $("#listing-additional-info"), listingOutput: $("#listing-output"),
@@ -202,6 +202,7 @@ function updateWorkflowSignals() {
 
   const hasSavableAssets = hasPhotos || listingReady || creativeReady;
   elements.saveAllAssets.disabled = !hasSavableAssets || state.processing || state.creativeGenerating || state.listingGenerating;
+  elements.saveAllMobile.disabled = savableRecordPhotos().length === 0 || state.processing;
   elements.copyButton.disabled = !listingReady;
 }
 
@@ -518,6 +519,7 @@ function addFiles(fileList) {
   const remaining = Math.max(0, 20 - state.photos.length);
   const additions = incoming.slice(0, remaining).map((file) => ({
     id: photoId(file),
+    analyticsId: crypto.randomUUID(),
     originalFile: file,
     file,
     normalizedFile: null,
@@ -1064,6 +1066,7 @@ async function removeBackgroundInCloud(photo) {
   const form = new FormData();
   form.append("image", compactImage, compactImage.name || "product-photo");
   form.append("client_item_id", state.clientItemId);
+  form.append("client_photo_id", photo.analyticsId);
 
   const response = await fetch(`${config.supabaseUrl}/functions/v1/remove-product-background`, {
     method: "POST",
@@ -1280,7 +1283,7 @@ async function createFreshPhotoCopy(blob, filename) {
   }
 }
 
-async function saveAllPhotos() {
+async function saveAllPhotosToPhone() {
   const records = savableRecordPhotos().filter(({ photo }) => !photo.referenceOnly);
   if (!records.length) return;
   const files = records.map(({ shareBlob, shareFilename }) => new File(
@@ -1290,20 +1293,25 @@ async function saveAllPhotos() {
   ));
 
   if (!navigator.share || !navigator.canShare?.({ files })) {
-    window.alert("This device cannot save several photos at once. Use Download All to create one ZIP instead.");
+    window.alert("This device cannot open several photos at once. Use the computer button to download the complete ZIP instead.");
     return;
   }
 
-  elements.saveAll.disabled = true;
-  elements.saveAll.textContent = "OPENING PHOTOS…";
+  elements.saveAllMobile.disabled = true;
+  elements.saveAllMobile.classList.add("working");
+  elements.saveAllMobile.setAttribute("aria-label", "Opening all edited photos on this phone");
   try {
     await navigator.share({ files, title: "Dressup Sesh edited product photos" });
+    elements.saveAllMobile.classList.add("complete");
   } catch (error) {
     if (error?.name !== "AbortError") {
-      window.alert("The photos could not be opened for saving. Please try Download All instead.");
+      window.alert("The photos could not be opened for saving. Use the computer button to download the complete ZIP instead.");
     }
   } finally {
-    render();
+    elements.saveAllMobile.classList.remove("working");
+    elements.saveAllMobile.setAttribute("aria-label", "Save all edited photos to phone");
+    setTimeout(() => elements.saveAllMobile.classList.remove("complete"), 1400);
+    updateWorkflowSignals();
   }
 }
 
@@ -1650,6 +1658,7 @@ elements.dropzone.addEventListener("drop", (event) => { event.preventDefault(); 
 elements.input.addEventListener("change", () => { addFiles(elements.input.files); elements.input.value = ""; });
 elements.process.addEventListener("click", processPhotos);
 elements.saveAllAssets.addEventListener("click", saveAllItemAssets);
+elements.saveAllMobile.addEventListener("click", saveAllPhotosToPhone);
 elements.clearAll.addEventListener("click", clearAllPhotos);
 elements.listingButton.addEventListener("click", createListing);
 elements.emptyListing.addEventListener("click", () => { $("[data-tab='photos']").click(); elements.input.click(); });
