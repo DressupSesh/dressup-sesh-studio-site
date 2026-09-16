@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Dressup Sesh Studio beta: three free complete listings for resale sellers.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests">
+  <title>Dressup Sesh Studio Beta</title>
+  <link rel="stylesheet" href="beta.css?v=1">
+</head>
+<body>
+  <main class="beta-shell">
+    <header class="beta-header"><a class="wordmark" href="../" aria-label="Dressup Sesh Studio home"><span>DS</span> Dressup Sesh <small>Listing Studio</small></a><a class="signin-link" href="../?intent=signin">Already use Studio? Sign in</a></header>
+
+    <section class="beta-intro" id="beta-intro">
+      <p class="eyebrow">PRIVATE BETA</p>
+      <h1>Put the selling part on easier mode.</h1>
+      <p>Turn one item into clean listing photos, searchable copy, and creative visualsâwithout making resale feel like another job.</p>
+      <div class="promise"><strong>3 complete items free</strong><span>Then you choose whether to continue at $12.99/month for about 20 items. No automatic charge.</span></div>
+      <button class="primary" id="start-beta" type="button">Start my free beta <span>â</span></button>
+      <p class="small-note">Two quick questions. Then weâll send a secure sign-in email.</p>
+    </section>
+
+    <section class="beta-card" id="beta-card" hidden aria-labelledby="beta-title">
+      <div class="progress-label"><span id="progress-copy">Question 1 of 2</span><button id="back-step" type="button" hidden>Back</button></div>
+      <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+      <form id="beta-form" novalidate>
+        <fieldset class="step" data-step="1">
+          <p class="eyebrow">A little about you</p>
+          <h1 id="beta-title">What should we call you?</h1>
+          <label class="field">Name<input id="display-name" name="display_name" type="text" maxlength="100" autocomplete="name" required placeholder="Your first name"></label>
+          <p class="field-label">Your relationship to resale</p>
+          <div class="choice-grid relationship-grid" id="relationship-choices">
+            <button type="button" data-value="casual_seller">I sell from my own closet</button>
+            <button type="button" data-value="reseller">I resell regularly</button>
+            <button type="button" data-value="vintage_boutique">I run a vintage or resale shop</button>
+            <button type="button" data-value="consignment">I consign or sell for others</button>
+            <button type="button" data-value="creator">I create resale content</button>
+            <button type="button" data-value="other">Something else</button>
+          </div>
+          <p class="form-error" id="step-one-error" role="alert"></p>
+          <button class="primary" id="next-step" type="button">Continue <span>â</span></button>
+        </fieldset>
+
+        <fieldset class="step" data-step="2" hidden>
+          <p class="eyebrow">Your listing rhythm</p>
+          <h1>Where do you sell?</h1>
+          <p class="helper">Choose all that apply.</p>
+          <div class="platform-list" id="platform-choices">
+            <button type="button" data-value="poshmark">Poshmark</button><button type="button" data-value="depop">Depop</button><button type="button" data-value="ebay">eBay</button><button type="button" data-value="etsy">Etsy</button><button type="button" data-value="mercari">Mercari</button><button type="button" data-value="grailed">Grailed</button><button type="button" data-value="vestiaire_collective">Vestiaire Collective</button><button type="button" data-value="whatnot">Whatnot</button><button type="button" data-value="shopify">Shopify / my own site</button><button type="button" data-value="other">Other</button>
+          </div>
+          <label class="field">Ideal listings each month
+            <select id="monthly-volume" required>
+              <option value="">Choose one</option><option value="1_5">1â5 items</option><option value="6_20">6â20 items</option><option value="21_50">21â50 items</option><option value="51_100">51â100 items</option><option value="101_plus">101+ items</option>
+            </select>
+          </label>
+          <label class="field">Email<input id="beta-email" type="email" maxlength="254" autocomplete="email" required placeholder="you@example.com"></label>
+          <div class="turnstile" id="beta-turnstile" hidden aria-label="Security verification"></div>
+          <p class="form-error" id="step-two-error" role="alert"></p>
+          <button class="primary" id="send-beta-email" type="submit">Send my secure sign-in email <span>â</span></button>
+          <p class="small-note">We use your answers only to shape the beta and follow up about your trial.</p>
+        </fieldset>
+      </form>
+    </section>
+
+    <section class="beta-success" id="beta-success" hidden aria-live="polite">
+      <p class="eyebrow">Almost there</p>
+      <h1>Check your email.</h1>
+      <p id="success-copy">Open the newest Dressup Sesh email on this device. Weâll save your beta profile and take you into your three-item Studio trial.</p>
+      <a class="quiet-link" href="../?intent=signin">Already have an account? Sign in instead</a>
+    </section>
+  </main>
+  <script src="../config.js"></script>
+  <script src="../turnstile.js?v=2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+  <script src="beta.js?v=1"></script>
+</body>
+</html>
