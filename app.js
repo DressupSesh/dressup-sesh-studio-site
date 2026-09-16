@@ -5,6 +5,7 @@ const configured = Boolean(config.supabaseUrl && config.supabasePublishableKey);
 const supabase = configured ? createClient(config.supabaseUrl, config.supabasePublishableKey) : null;
 const PENDING_AUTH_ACTION_KEY = "dressupSeshPendingAuthAction";
 const PENDING_CONFIRMATION_EMAIL_KEY = "dressupSeshPendingConfirmationEmail";
+let betaSurveyRouting = false;
 
 function readSessionValue(key) {
   try {
@@ -283,8 +284,34 @@ async function verifyStudioSession(session) {
 async function refreshAccess() {
   if (!state.session) return null;
   const access = await verifyStudioSession(state.session);
-  if (access) applyAccess(access);
+  if (access) {
+    applyAccess(access);
+    void maybeRouteToBetaSurvey();
+  }
   return access;
+}
+
+async function maybeRouteToBetaSurvey() {
+  if (betaSurveyRouting || !state.session || !configured) return;
+  if (window.location.pathname.includes("/beta/survey")) return;
+  betaSurveyRouting = true;
+  try {
+    const response = await fetch(`${config.supabaseUrl}/functions/v1/get-beta-status`, {
+      headers: {
+        apikey: config.supabasePublishableKey,
+        Authorization: `Bearer ${state.session.access_token}`
+      }
+    });
+    const data = await response.json().catch(() => ({}));
+    const beta = data.status;
+    if (response.ok && beta?.enrolled && ["eligible", "reminder_sent"].includes(beta.survey_state)) {
+      window.location.assign("beta/survey/");
+    }
+  } catch {
+    // Survey availability never blocks the Studio workflow.
+  } finally {
+    betaSurveyRouting = false;
+  }
 }
 
 async function refreshSession(session) {
@@ -309,7 +336,10 @@ async function refreshSession(session) {
     : "Try three complete items free, or sign in to continue.";
   if (configured) $("#connection-copy").textContent = state.session ? "Studio ready" : "Sign in required";
   render();
-  if (state.session) void continuePendingCheckout();
+  if (state.session) {
+    void continuePendingCheckout();
+    void maybeRouteToBetaSurvey();
+  }
 }
 
 async function invokeStudioFunction(name, body = {}) {
@@ -1956,4 +1986,5 @@ if (state.pendingConfirmationEmail) {
   elements.authEmail.value = state.pendingConfirmationEmail;
   elements.resendButton.classList.remove("hidden");
 }
+if (requestedAuthIntent === "signin" && !state.session) openAuthDialog();
 render();
