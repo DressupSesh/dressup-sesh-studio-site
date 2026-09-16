@@ -1,0 +1,27 @@
+.finance-section {
+  margin: 24px 0 2px;
+}
+
+.finance-section h2 {
+  margin-bottom: 8px;
+}
+
+.finance-kpis .metric strong {
+  font-size: clamp(32px, 3.5vw, 48px);
+  overflow-wrap: anywhere;
+}
+
+.finance-note {
+  margin: -10px 0 22px;
+}
+
+.status-paid,
+.status-succeeded {
+  color: var(--green);
+}
+
+.status-payment_failed,
+.status-failed,
+.status-stalled {
+  color: var(--orange);
+}
