@@ -1,24 +1,22 @@
 (() => {
+  // app.js loads after this file. Mark this button as exclusively handled here
+  // so two share sheets (and a misleading desktop-download warning) cannot race.
+  window.DRESSUP_HANDLES_PHONE_SAVE = true;
   const button = document.querySelector("#save-all-mobile");
   const grid = document.querySelector("#photo-grid");
   if (!button || !grid) return;
-
   let preparedFiles = [];
   let refreshVersion = 0;
-
   function finishedPhotoLinks() {
-    return [...grid.querySelectorAll("a[download]")]
-      .filter((link) => link.href && link.download);
+    return [...grid.querySelectorAll("a[download]")].filter(link => link.href && link.download);
   }
-
   async function refreshPreparedFiles() {
     const version = ++refreshVersion;
     const links = finishedPhotoLinks();
     button.disabled = true;
     button.classList.remove("complete");
-
     try {
-      const files = await Promise.all(links.map(async (link) => {
+      const files = await Promise.all(links.map(async link => {
         const response = await fetch(link.href);
         if (!response.ok) throw new Error("Could not prepare a finished photo.");
         const blob = await response.blob();
@@ -33,15 +31,13 @@
       button.disabled = true;
     }
   }
-
   button.addEventListener("click", async () => {
     const files = preparedFiles.slice();
     if (!files.length) return;
     if (!navigator.share || !navigator.canShare?.({ files })) {
-      window.alert("This device cannot save several photos at once. Use the computer button to download the complete ZIP instead.");
+      window.alert("Your browser cannot open these photos for saving. Use Download All instead.");
       return;
     }
-
     button.disabled = true;
     button.classList.add("working");
     button.setAttribute("aria-label", "Opening all edited photos on this phone");
@@ -49,9 +45,7 @@
       await navigator.share({ files, title: "Dressup Sesh edited product photos" });
       button.classList.add("complete");
     } catch (error) {
-      if (error?.name !== "AbortError") {
-        window.alert("The photos could not be opened for saving. Use the computer button to download the complete ZIP instead.");
-      }
+      if (error?.name !== "AbortError") window.alert("The photos could not be opened for saving. Please try again.");
     } finally {
       button.classList.remove("working");
       button.setAttribute("aria-label", "Save all edited photos to phone");
@@ -59,12 +53,8 @@
       setTimeout(() => button.classList.remove("complete"), 1400);
     }
   });
-
   new MutationObserver(() => { void refreshPreparedFiles(); }).observe(grid, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["href", "download"]
+    childList: true, subtree: true, attributes: true, attributeFilter: ["href", "download"]
   });
   void refreshPreparedFiles();
 })();
