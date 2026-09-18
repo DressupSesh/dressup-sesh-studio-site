@@ -62,10 +62,22 @@
   async function startSecureEmail(value) {
     const response = await fetch(`${config.supabaseUrl}/functions/v1/begin-beta-signup`, {
       method: 'POST', headers: { apikey: config.supabasePublishableKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...value, captcha_token: captcha.getToken() || null }),
+      body: JSON.stringify({ ...value, browser_auth: true }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'We could not send your secure email. Please try again.');
+    if (!/^[0-9a-f-]{36}$/i.test(data.handoff || '')) throw new Error('We could not prepare your secure sign-in. Please try again.');
+    const redirect = new URL('https://dressupsesh.studio/beta/');
+    redirect.searchParams.set('handoff', data.handoff);
+    const { error } = await client.auth.signInWithOtp({
+      email: value.email,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: redirect.toString(),
+        captchaToken: captcha.getToken() || undefined,
+      },
+    });
+    if (error) throw error;
   }
   async function finishSecureEmail(session) {
     if (!handoff || !session || state.handoffDone) return;
