@@ -2,24 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Dressup Sesh Studio beta: three free complete listings for resale sellers.">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests">
   <title>Dressup Sesh Studio Beta</title>
-  <link rel="stylesheet" href="beta.css?v=1">
+  <link rel="stylesheet" href="beta.css?v=2">
 </head>
 <body>
   <main class="beta-shell">
-    <header class="beta-header"><a class="wordmark" href="../" aria-label="Dressup Sesh Studio home"><span>DS</span> Dressup Sesh <small>Listing Studio</small></a><a class="signin-link" href="../?intent=signin">Already use Studio? Sign in</a></header>
+    <header class="beta-header"><a class="wordmark" href="./" aria-label="Dressup Sesh Studio home"><span>DS</span> Dressup Sesh <small>Listing Studio</small></a><a class="signin-link" href="./?intent=signin">Already use Studio? Sign in</a></header>
 
     <section class="beta-intro" id="beta-intro">
       <p class="eyebrow">PRIVATE BETA</p>
       <h1>Put the selling part on easier mode.</h1>
-      <p>Turn one item into clean listing photos, searchable copy, and creative visualsâwithout making resale feel like another job.</p>
+      <p>Turn one item into clean listing photos, searchable copy, and creative visuals&mdash;without making resale feel like another job.</p>
       <div class="promise"><strong>3 complete items free</strong><span>Then you choose whether to continue at $12.99/month for about 20 items. No automatic charge.</span></div>
-      <button class="primary" id="start-beta" type="button">Start my free beta <span>â</span></button>
-      <p class="small-note">Two quick questions. Then weâll send a secure sign-in email.</p>
+      <button class="primary" id="start-beta" type="button">Start my free beta <span aria-hidden="true">&rarr;</span></button>
+      <p class="small-note">Two quick questions. Then we&rsquo;ll send a secure sign-in email.</p>
     </section>
 
     <section class="beta-card" id="beta-card" hidden aria-labelledby="beta-title">
@@ -40,7 +40,7 @@
             <button type="button" data-value="other">Something else</button>
           </div>
           <p class="form-error" id="step-one-error" role="alert"></p>
-          <button class="primary" id="next-step" type="button">Continue <span>â</span></button>
+          <button class="primary" id="next-step" type="button">Continue <span aria-hidden="true">&rarr;</span></button>
         </fieldset>
 
         <fieldset class="step" data-step="2" hidden>
@@ -52,13 +52,13 @@
           </div>
           <label class="field">Ideal listings each month
             <select id="monthly-volume" required>
-              <option value="">Choose one</option><option value="1_5">1â5 items</option><option value="6_20">6â20 items</option><option value="21_50">21â50 items</option><option value="51_100">51â100 items</option><option value="101_plus">101+ items</option>
+              <option value="">Choose one</option><option value="1_5">1-5 items</option><option value="6_20">6-20 items</option><option value="21_50">21-50 items</option><option value="51_100">51-100 items</option><option value="101_plus">101+ items</option>
             </select>
           </label>
           <label class="field">Email<input id="beta-email" type="email" maxlength="254" autocomplete="email" required placeholder="you@example.com"></label>
           <div class="turnstile" id="beta-turnstile" hidden aria-label="Security verification"></div>
           <p class="form-error" id="step-two-error" role="alert"></p>
-          <button class="primary" id="send-beta-email" type="submit">Send my secure sign-in email <span>â</span></button>
+          <button class="primary" id="send-beta-email" type="submit">Send my secure sign-in email <span aria-hidden="true">&rarr;</span></button>
           <p class="small-note">We use your answers only to shape the beta and follow up about your trial.</p>
         </fieldset>
       </form>
@@ -66,14 +66,14 @@
 
     <section class="beta-success" id="beta-success" hidden aria-live="polite">
       <p class="eyebrow">Almost there</p>
-      <h1>Check your email.</h1>
-      <p id="success-copy">Open the newest Dressup Sesh email on this device. Weâll save your beta profile and take you into your three-item Studio trial.</p>
-      <a class="quiet-link" href="../?intent=signin">Already have an account? Sign in instead</a>
+      <h1 id="success-title">Check your email.</h1>
+      <p id="success-copy">Open the newest Dressup Sesh email on any device. We&rsquo;ll save your beta profile and take you into your three-item Studio trial.</p>
+      <a class="quiet-link" href="./?intent=signin">Already have an account? Sign in instead</a>
     </section>
   </main>
-  <script src="../config.js"></script>
-  <script src="../turnstile.js?v=2"></script>
+  <script src="config.js"></script>
+  <script src="turnstile.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-  <script src="beta.js?v=1"></script>
+  <script src="beta.js?v=2"></script>
 </body>
 </html>
