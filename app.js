@@ -65,6 +65,7 @@ const elements = {
   saveAllAssets: $("#save-all-assets"), saveAllMobile: $("#save-all-mobile"), copyButton: $("#copy-all-global"),
   listingPanel: $("#listing-panel"), photosPanel: $("#photos-panel"), creativePanel: $("#creative-panel"),
   emptyListing: $("#empty-listing"), listingLayout: $("#listing-layout"), sourceStrip: $("#source-strip"),
+  listingReferenceInput: $("#listing-reference-input"), listingReferencePicker: $("#listing-reference-picker"), listingReferenceGrid: $("#listing-reference-grid"),
   listingButton: $("#listing-button"), listingNote: $("#listing-note"), listingAdditional: $("#listing-additional-info"), listingOutput: $("#listing-output"),
   outputPlaceholder: $("#output-placeholder"), listingError: $("#listing-error"),
   authButton: $("#auth-button"), authDialog: $("#auth-dialog"), authForm: $("#auth-form"),
@@ -237,7 +238,7 @@ function renderBilling(access = state.access) {
     : paid
       ? access.cancel_at_period_end
         ? `Your plan remains active through ${formatBillingDate(access.current_period_end)}.`
-        : "Your monthly credits are designed for approximately 20 complete listings, including room for a few retries."
+        : "Your monthly credits are designed for 20 items+ with room for a few retries; your mix depends on how you use them."
       : "Three free listings share 15 photo cleanups, 3 copy generations and 3 creative images.";
   elements.billingSubscribe.classList.toggle("hidden", owner || paid);
   elements.billingAddCredits.classList.toggle("hidden", owner || !paid);
@@ -533,8 +534,8 @@ async function preparePhoto(photo) {
       photo.file = await convertHeicFile(photo.file);
     }
     photo.preview = URL.createObjectURL(photo.file);
-    photo.status = "ready";
-    photo.statusLabel = "ready";
+    photo.status = photo.referenceOnly ? "reference" : "ready";
+    photo.statusLabel = photo.referenceOnly ? "reference only" : "ready";
   } catch (error) {
     photo.status = "error";
     photo.statusLabel = "try again";
@@ -544,10 +545,11 @@ async function preparePhoto(photo) {
   render();
 }
 
-function addFiles(fileList) {
+function addFiles(fileList, referenceOnly = false) {
   const incoming = [...fileList].filter((file) => file.type.startsWith("image/") || /\.hei(c|f)$/i.test(file.name));
   const remaining = Math.max(0, 20 - state.photos.length);
-  const additions = incoming.slice(0, remaining).map((file) => ({
+  const referenceSlots = referenceOnly ? Math.max(0, 4 - state.photos.filter((photo) => photo.referenceOnly).length) : remaining;
+  const additions = incoming.slice(0, Math.min(remaining, referenceSlots)).map((file) => ({
     id: photoId(file),
     analyticsId: crypto.randomUUID(),
     originalFile: file,
@@ -556,7 +558,7 @@ function addFiles(fileList) {
     preview: "",
     status: isHeicFile(file) ? "converting" : "preparing",
     statusLabel: isHeicFile(file) ? "preparing iPhone photo" : "preparing",
-    referenceOnly: false,
+    referenceOnly,
     cleanBaseBlob: null,
     editInstructions: [],
     resultUrl: "",
@@ -662,6 +664,7 @@ function clearAllPhotos() {
   elements.copyButton.disabled = true;
   elements.listingError.classList.add("hidden");
   elements.input.value = "";
+  if (elements.listingReferenceInput) elements.listingReferenceInput.value = "";
   $("[data-tab='photos']").click();
   window.scrollTo({ top: 0, behavior: "smooth" });
   render();
@@ -700,6 +703,7 @@ function render() {
   elements.creativeOutput.classList.toggle("generating", state.creativeGenerating);
   const listingSources = selectPhotosForRequest(usablePhotos, 8, true);
   const creativeSources = selectPhotosForRequest(usablePhotos, 6, false);
+  const referencePhotos = usablePhotos.filter((photo) => photo.referenceOnly);
 
   elements.grid.innerHTML = state.photos.map((photo, index) => `
     <article class="photo-card">
@@ -726,6 +730,15 @@ function render() {
     `<img class="${photo.referenceOnly ? "reference-source" : ""}" src="${photo.preview}" alt="${photo.referenceOnly ? "Reference-only" : "Product"} listing source ${index + 1}" title="${photo.referenceOnly ? "Reference Only" : "Product photo"}">`).join("") +
     (usablePhotos.length > listingSources.length ? `<span>+${usablePhotos.length - listingSources.length}</span>` : "");
 
+  elements.listingReferenceGrid.classList.toggle("hidden", referencePhotos.length === 0);
+  elements.listingReferenceGrid.innerHTML = referencePhotos.map((photo, index) => `
+    <article>
+      <img src="${photo.preview}" alt="Reference detail ${index + 1}">
+      <span>PRIORITY</span>
+      <button type="button" data-remove-reference="${photo.id}" aria-label="Remove reference photo ${index + 1}">×</button>
+    </article>`).join("");
+  elements.listingReferencePicker.disabled = state.processing || state.listingGenerating || state.photos.length >= 20 || referencePhotos.length >= 4;
+
   elements.creativeSourceStrip.innerHTML = creativeSources.map((photo, index) =>
     `<img class="${photo.referenceOnly ? "reference-source" : ""}" src="${photo.preview}" alt="${photo.referenceOnly ? "Reference-only" : "Product"} creative source ${index + 1}" title="${photo.referenceOnly ? "Reference Only" : "Product photo"}">`).join("") +
     (usablePhotos.length > creativeSources.length ? `<span>+${usablePhotos.length - creativeSources.length}</span>` : "");
@@ -734,6 +747,7 @@ function render() {
   $$('[data-edit]').forEach((button) => button.addEventListener("click", () => { void openPhotoEditor(button.dataset.edit); }));
   $$('[data-retry]').forEach((button) => button.addEventListener("click", () => { void processSinglePhoto(button.dataset.retry); }));
   $$('[data-reference-only]').forEach((button) => button.addEventListener("click", () => toggleReferenceOnly(button.dataset.referenceOnly)));
+  $$('[data-remove-reference]').forEach((button) => button.addEventListener("click", () => removePhoto(button.dataset.removeReference)));
   $("#add-more")?.addEventListener("click", () => elements.input.click());
   updateWorkflowSignals();
 }
@@ -1688,9 +1702,14 @@ elements.dropzone.addEventListener("drop", (event) => { event.preventDefault(); 
 elements.input.addEventListener("change", () => { addFiles(elements.input.files); elements.input.value = ""; });
 elements.process.addEventListener("click", processPhotos);
 elements.saveAllAssets.addEventListener("click", saveAllItemAssets);
-elements.saveAllMobile.addEventListener("click", saveAllPhotosToPhone);
+if (!window.DRESSUP_HANDLES_PHONE_SAVE) elements.saveAllMobile.addEventListener("click", saveAllPhotosToPhone);
 elements.clearAll.addEventListener("click", clearAllPhotos);
 elements.listingButton.addEventListener("click", createListing);
+elements.listingReferencePicker.addEventListener("click", () => elements.listingReferenceInput.click());
+elements.listingReferenceInput.addEventListener("change", () => {
+  addFiles(elements.listingReferenceInput.files, true);
+  elements.listingReferenceInput.value = "";
+});
 elements.emptyListing.addEventListener("click", () => { $("[data-tab='photos']").click(); elements.input.click(); });
 elements.emptyCreative.addEventListener("click", () => { $("[data-tab='photos']").click(); elements.input.click(); });
 elements.creativeGenerate.addEventListener("click", generateCreativeImage);

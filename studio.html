@@ -7,6 +7,7 @@
   <title>Dressup Sesh Studio</title>
   <link rel="stylesheet" href="styles.css?v=mobile-final-2">
   <link rel="stylesheet" href="auth.css?v=credit-balances-1">
+  <link rel="stylesheet" href="studio-frame.css?v=1">
   <style>
     .cloud-choice{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .cloud-choice>span{min-width:72px;margin-right:6px;font-size:9px;font-weight:800;letter-spacing:.15em}
@@ -25,9 +26,9 @@
 <body class="auth-pending">
   <section class="login-gate" id="login-gate" aria-labelledby="login-title">
     <header class="public-topbar">
-      <div class="brand" aria-label="Dressup Sesh Studio">
-        <span class="brand-mark">DS</span>
-        <span><strong>DRESSUP SESH</strong><small>LISTING STUDIO</small></span>
+      <div class="brand brand-wordmark" aria-label="Dressup Sesh Studio">
+        <span class="brand-wordmark-crop"><img src="assets/dressup-sesh-wordmark.png" alt="Dressup Sesh"></span>
+        <span class="brand-studio-suffix" aria-hidden="true">studio</span>
       </div>
       <button class="public-signin" id="gate-signin" type="button">SIGN IN</button>
     </header>
@@ -196,7 +197,7 @@
             <article class="plan-card featured">
               <p class="eyebrow">PRIVATE BETA</p>
               <h3>$12.99 <small>/ month</small></h3>
-              <p>Approximately 20 listings each month, powered by 250 background removals, 25 copy generations and 25 creative images.</p>
+              <p><strong>20 items+ each month</strong>, powered by 250 background removals, 25 copy generations and 25 creative images. Your mix depends on how you use the credits.</p>
               <button class="primary wide" type="button" data-open-plan="subscribe">SUBSCRIBE TO PRIVATE BETA</button>
               <small>Use BETA50 at checkout for 50% off your first month through September 30.</small>
             </article>
@@ -232,14 +233,15 @@
   </section>
   <main class="app-shell" id="top">
     <header class="topbar">
-      <a class="brand" href="#top" aria-label="Dressup Sesh Studio home">
-        <span class="brand-mark">DS</span>
-        <span><strong>DRESSUP SESH</strong><small>LISTING STUDIO</small></span>
+      <a class="brand brand-wordmark" href="#top" aria-label="Dressup Sesh Studio home">
+        <span class="brand-wordmark-crop"><img src="assets/dressup-sesh-wordmark.png" alt="Dressup Sesh"></span>
+        <span class="brand-studio-suffix" aria-hidden="true">studio</span>
       </a>
       <div class="account-tools">
         <span class="usage-pill hidden" id="usage-pill"></span>
         <button class="plan-button hidden" id="plan-button" type="button">PLAN</button>
         <span class="connection-pill" id="connection-pill"><span class="status-dot"></span><span id="connection-copy">Photo cleanup ready</span></span>
+        <button class="tour-launch" id="studio-tour-button" type="button">TOUR THIS PAGE</button>
         <button class="auth-button" id="auth-button">SIGN IN</button>
       </div>
     </header>
@@ -366,6 +368,16 @@
         <div class="listing-source">
           <p class="step">SOURCE PHOTOS</p>
           <div class="source-strip" id="source-strip"></div>
+          <section class="listing-reference-field" aria-labelledby="listing-reference-title">
+            <div class="listing-reference-head">
+              <div><p class="step">PRIORITY DETAILS</p><h3 id="listing-reference-title">Reference photos</h3></div>
+              <span>FACTS ONLY</span>
+            </div>
+            <p>Add up to 4 measurement shots, labels, tags, style numbers or item details. These images are read first and stay out of cleaned photos and Save All.</p>
+            <input id="listing-reference-input" type="file" accept="image/*,.heic,.heif" multiple hidden>
+            <button class="listing-reference-picker" id="listing-reference-picker" type="button"><span>＋</span><strong>Add reference photos</strong><small>Measurements · labels · item details</small></button>
+            <div class="listing-reference-grid hidden" id="listing-reference-grid" aria-live="polite"></div>
+          </section>
           <label class="creative-field" for="listing-additional-info"><strong>OPTIONAL ADDITIONAL ITEM INFORMATION</strong><span>Add facts the photos may not capture—measurements, material, flaws, style number, included accessories or history.</span>
             <textarea id="listing-additional-info" maxlength="2000" rows="5" placeholder="Example: Measures 12 in. wide × 9 in. tall. Genuine leather. Includes dust bag. Small scratch on back corner…"></textarea>
           </label>
@@ -386,6 +398,17 @@
 
     <footer><span>DRESSUP SESH STUDIO</span><span>ONE ITEM IN · READY TO SELL OUT</span></footer>
   </main>
+  <dialog class="studio-tour-dialog" id="studio-tour-dialog" aria-labelledby="studio-tour-title">
+    <button class="dialog-close" id="studio-tour-close" type="button" aria-label="Close Studio tour">×</button>
+    <p class="tour-progress" id="studio-tour-progress">01 / 05</p>
+    <p class="eyebrow">TOUR THIS PAGE</p>
+    <h2 id="studio-tour-title">Start with the photos buyers will see.</h2>
+    <p id="studio-tour-copy">Upload the complete product set once. Dressup Sesh uses it across photo cleanup, listing copy and creative images.</p>
+    <div class="tour-actions">
+      <button id="studio-tour-back" type="button">BACK</button>
+      <button class="primary" id="studio-tour-next" type="button">NEXT</button>
+    </div>
+  </dialog>
   <dialog class="auth-dialog" id="auth-dialog">
     <button class="dialog-close" id="dialog-close" aria-label="Close sign-in">×</button>
     <p class="eyebrow">STUDIO ACCESS</p>
@@ -406,7 +429,8 @@
     <button class="dialog-close" id="paywall-close" aria-label="Close">×</button>
     <p class="eyebrow">FREE TRIAL COMPLETE</p>
     <h2>You created three complete items.</h2>
-    <p>Your work is still yours to save and download. Continue with approximately 20 listings each month in the Private Beta.</p>
+    <p>Your work is still yours to save and download. Continue with 20 items+ each month in the Private Beta.</p>
+    <details class="plan-details"><summary>WHAT 20 ITEMS+ INCLUDES</summary><p>250 background removals, 25 listing-copy generations and 25 creative images. The item estimate is flexible—not a hard counter.</p><p>Cancel future renewals any time. Private Beta charges are non-refundable except for billing errors or where required by law.</p></details>
     <button class="primary wide" id="paywall-subscribe" type="button">SUBSCRIBE · $12.99 / MONTH</button>
     <button class="text-button" id="paywall-done" type="button">NOT NOW</button>
   </dialog>
@@ -465,6 +489,7 @@
   <script src="landing.js?v=mobile-compact-1"></script>
   <script src="mobile-save.js?v=1"></script>
   <script src="page-actions.js?v=1"></script>
+  <script src="studio-tour.js?v=1"></script>
   <script type="module" src="app.js?v=credit-balances-1"></script>
 </body>
 </html>
