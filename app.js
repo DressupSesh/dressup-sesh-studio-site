@@ -71,7 +71,7 @@ const elements = {
   authTitle: $("#auth-title"), authDescription: $("#auth-description"), signupButton: $("#signup-button"),
   authEmail: $("#auth-email"), authPassword: $("#auth-password"), authMessage: $("#auth-message"),
   loginGate: $("#login-gate"), gateSignIn: $("#gate-signin"), gateCreate: $("#gate-create"), gateMessage: $("#gate-message"),
-  forgotPasswordButton: $("#forgot-password-button"), resendButton: $("#resend-button"),
+  magicLinkButton: $("#magic-link-button"), forgotPasswordButton: $("#forgot-password-button"), resendButton: $("#resend-button"),
   usagePill: $("#usage-pill"), planButton: $("#plan-button"), paywallDialog: $("#paywall-dialog"),
   paywallSubscribe: $("#paywall-subscribe"),
   billingDialog: $("#billing-dialog"), billingClose: $("#billing-close"), billingPlanTitle: $("#billing-plan-title"),
@@ -1884,6 +1884,33 @@ elements.authForm.addEventListener("submit", async (event) => {
     elements.authMessage.textContent = "Signed in.";
     setTimeout(() => elements.authDialog.close(), 450);
   }
+});
+
+elements.magicLinkButton.addEventListener("click", async () => {
+  if (!supabase) return;
+  const email = elements.authEmail.value.trim();
+  if (!email) {
+    elements.authMessage.textContent = "Enter your Studio account email first.";
+    elements.authEmail.focus();
+    return;
+  }
+  const captchaToken = getCaptchaToken(authCaptcha, elements.authMessage);
+  if (captchaToken === null) return;
+  elements.magicLinkButton.disabled = true;
+  elements.authMessage.textContent = "Sending secure sign-in email…";
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: getAuthRedirectUrl(state.pendingAuthAction),
+      captchaToken,
+    },
+  });
+  authCaptcha.reset();
+  elements.magicLinkButton.disabled = false;
+  elements.authMessage.textContent = error
+    ? captchaFailureMessage(error)
+    : `Secure sign-in email sent to ${email}. Open the newest link to enter Studio.`;
 });
 
 elements.forgotPasswordButton.addEventListener("click", async () => {
