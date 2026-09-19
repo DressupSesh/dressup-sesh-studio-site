@@ -51,8 +51,8 @@
   }
   function validateStepTwo() {
     const value = intake(); const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email);
-    if (!state.platforms.size || !value.ideal_monthly_listing_volume || !validEmail) {
-      $('#step-two-error').textContent = 'Choose at least one platform, your monthly volume, and a valid email.'; return false;
+    if (!value.ideal_monthly_listing_volume || !validEmail) {
+      $('#step-two-error').textContent = 'Choose your monthly volume and enter a valid email.'; return false;
     }
     if (captcha.enabled && !captcha.getToken()) {
       $('#step-two-error').textContent = 'Complete the security check, then continue.'; return false;
