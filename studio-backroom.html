@@ -1,114 +1,115 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f5f2e9">
-  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
-  <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests">
-  <title>Studio Back Room Â· Dressup Sesh</title>
-  <link rel="stylesheet" href="studio-backroom.css?v=3">
-  <link rel="stylesheet" href="studio-backroom-finance.css?v=1">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="#f5f2e9" name="theme-color"/>
+<meta content="noindex,nofollow,noarchive,nosnippet" name="robots"/>
+<meta content="no-referrer" name="referrer"/>
+<meta content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests" http-equiv="Content-Security-Policy"/>
+<title>Studio Back Room · Dressup Sesh</title>
+<link href="studio-backroom.css?v=3" rel="stylesheet"/>
+<link href="studio-backroom-finance.css?v=1" rel="stylesheet"/>
 </head>
 <body>
-  <header class="masthead"><a class="wordmark" href="./">DRESSUP SESH <span>STUDIO BACK ROOM</span></a><div class="header-actions"><span class="private-label">OWNER ONLY</span><button id="sign-out" class="ds-hidden" type="button">Sign out</button></div></header>
-  <main>
-    <section id="auth-screen" class="auth-screen">
-      <form id="auth-form" class="panel auth-card">
-        <p class="eyebrow">YOUR BUSINESS, AT A GLANCE</p><h1>Studio Back Room</h1>
-        <p>Customer activity, credits and operations for the Listing Studio. Separate from the shop Back Room.</p>
-        <label for="auth-email">Owner email</label><input id="auth-email" type="email" autocomplete="username" required>
-        <label for="auth-password">Password</label><input id="auth-password" type="password" autocomplete="current-password" required>
-        <div id="owner-turnstile" hidden aria-label="Security verification"></div>
-        <button class="primary" id="password-sign-in" type="submit">Sign in as owner</button>
-        <button class="text-button" id="password-reset" type="button">Reset owner password</button>
-        <p id="auth-status" role="status">Use your existing owner account and authenticator.</p>
-      </form>
-    </section>
-    <section id="mfa-screen" class="auth-screen ds-hidden">
-      <form id="mfa-form" class="panel auth-card">
-        <p class="eyebrow">TWO-STEP VERIFICATION</p><h1>Verify itâs you</h1>
-        <p id="mfa-enroll-help">Enter the code from your authenticator app.</p>
-        <img id="mfa-qr" class="ds-hidden" alt="Authenticator enrollment QR code">
-        <p id="mfa-secret" class="secret"></p>
-        <label for="mfa-code">Authenticator code</label><input id="mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
-        <button class="primary" id="mfa-verify" type="submit">Open Studio Back Room</button><p id="mfa-status" role="status"></p>
-      </form>
-    </section>
-    <div id="backroom-app" class="ds-hidden">
-      <section class="intro"><div><p class="eyebrow">LISTING STUDIO Â· OPERATIONS</p><h1>Your studio, in focus.</h1><p>Know who is using it, what is working, and where to look next.</p></div><p class="read-only">Read only Â· no billing or credit edits</p></section>
-      <nav class="backroom-tabs" aria-label="Studio Back Room sections" role="tablist">
-        <button id="finance-tab" type="button" role="tab" aria-controls="finance-pane" aria-selected="true">Operations & finance</button>
-        <button id="beta-tab" type="button" role="tab" aria-controls="beta-pane" aria-selected="false">Beta</button>
-      </nav>
-      <section id="finance-pane" role="tabpanel" aria-labelledby="finance-tab">
-      <form id="filters" class="filter-bar">
-        <label>Activity window<select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></label>
-        <label>Account group<select id="audience"><option value="customer">Customers</option><option value="unclassified">Unclassified</option><option value="test">Test accounts</option><option value="owner">Owner</option><option value="all">All accounts Â· includes testing</option></select></label>
-        <button id="refresh" type="submit">Refresh</button><button id="export" type="button" disabled>Export summary CSV</button>
-      </form>
-      <p id="dashboard-status" role="status" aria-live="polite">Connecting to your Studio recordsâ¦</p>
-      <div id="dashboard-data" hidden>
-        <aside id="classification-note" class="notice" hidden><span id="classification-text"></span> <button id="show-unclassified" class="text-button" type="button">Review unclassified accounts</button></aside>
-        <p id="snapshot-caption" class="caption"></p>
-        <section class="kpis" aria-label="Account overview">
-          <article class="panel metric"><span>Accounts</span><strong id="accounts-total">â</strong><small id="accounts-new"></small></article>
-          <article class="panel metric"><span>Email confirmed</span><strong id="confirmed-total">â</strong><small>Current accounts in this group</small></article>
-          <article class="panel metric"><span>Active users</span><strong id="active-total">â</strong><small>At least one successful operation in window</small></article>
-          <article class="panel metric"><span>Active plan records</span><strong id="paid-total">â</strong><small id="paid-note">Account state; compare live subscriptions below</small></article>
-        </section>
-        <section class="finance-section" aria-label="Live Stripe financial overview">
-          <div class="section-heading"><div><p class="eyebrow">LIVE STRIPE Â· BUSINESS WIDE</p><h2>Money in motion</h2></div><span id="finance-window" class="badge"></span></div>
-          <section class="kpis finance-kpis">
-            <article class="panel metric"><span>Collected</span><strong id="collected-total">â</strong><small>Successful live payments in window</small></article>
-            <article class="panel metric"><span>Refunded</span><strong id="refunded-total">â</strong><small>Successful live refunds in window</small></article>
-            <article class="panel metric"><span>Net collected</span><strong id="net-collected">â</strong><small>Collected minus refunds, before Stripe fees</small></article>
-            <article class="panel metric"><span>Live MRR</span><strong id="live-mrr">â</strong><small>Active subscription run rate</small></article>
-          </section>
-          <p class="caption finance-note">Live-mode USD activity across the entire Studio business. These financial totals do not change with the account-group filter and exclude Stripe fees.</p>
-        </section>
-        <div class="two-col">
-          <section class="panel"><p class="eyebrow">REVENUE MIX</p><h2>Where it came from</h2><dl class="facts"><div><dt>Subscriptions</dt><dd id="subscription-collected">â</dd></div><div><dt>Creative packs</dt><dd id="addon-collected">â</dd></div><div><dt>Paid transactions</dt><dd id="paid-transactions">â</dd></div><div><dt>Financial data begins</dt><dd id="finance-started">â</dd></div></dl></section>
-          <section class="panel"><p class="eyebrow">BILLING HEALTH</p><h2>What needs attention</h2><dl class="facts"><div><dt>Active live subscriptions</dt><dd id="live-subscriptions">â</dd></div><div><dt>Scheduled to cancel</dt><dd id="live-cancelling">â</dd></div><div><dt>Refund credit reviews</dt><dd id="refund-reviews">â</dd></div><div><dt>Unmatched transactions</dt><dd id="unmatched-transactions">â</dd></div></dl><p class="caption">Creative-pack refunds are queued for manual credit review so credits are never removed incorrectly after use.</p></section>
-        </div>
-        <div class="two-col">
-          <section class="panel"><div class="section-heading"><div><p class="eyebrow">FEATURE USAGE</p><h2>Whatâs getting made</h2></div><span id="items-count" class="badge"></span></div><div id="usage-list"></div><p class="caption">Counts are processing operations, not marketplace listings or downloaded files.</p></section>
-          <section class="panel"><p class="eyebrow">RELIABILITY & COST</p><h2>Keep an eye on</h2><dl class="facts"><div><dt>Failure rate</dt><dd id="failure-rate">â</dd></div><div><dt>In progress / stalled</dt><dd id="pending-count">â</dd></div><div><dt>Background retry rate</dt><dd id="retry-rate">â</dd></div><div><dt>Retry tracking coverage</dt><dd id="retry-coverage">â</dd></div><div><dt>Recorded cost estimates</dt><dd id="cost-total">â</dd></div><div><dt>Cost coverage</dt><dd id="cost-coverage">â</dd></div></dl><p class="caption">Costs include only estimates recorded by provider usage. Missing costs are unknown, not zero. Retry tracking begins with this release.</p></section>
-        </div>
-        <section class="panel"><p class="eyebrow">DAILY ACTIVITY Â· UTC</p><h2>A rhythm of use</h2><div class="table-scroll"><table><caption class="sr-only">Daily signups, successful operations and business-wide live payment activity</caption><thead><tr><th>Date</th><th>New accounts</th><th>Backgrounds</th><th>Copy</th><th>Creative</th><th>Failed</th><th>Collected</th><th>Refunded</th></tr></thead><tbody id="daily-rows"></tbody></table></div><p class="caption">Usage follows the selected group. Collected and refunded amounts are business-wide live Stripe activity.</p></section>
-        <section class="panel" id="accounts-section"><div class="section-heading"><div><p class="eyebrow">CUSTOMER LOOKUP</p><h2>People & credits</h2></div><form id="search-form" class="search-form"><label class="sr-only" for="account-search">Search accounts by email</label><input id="account-search" type="search" placeholder="Search email" maxlength="120"><button type="submit">Search</button></form></div><p class="caption">Balances are current, including unused trial bonuses and add-ons. Classifying an account changes analytics onlyânot its access, plan or credits.</p><div class="table-scroll"><table><caption class="sr-only">Studio accounts and current category credit balances</caption><thead><tr><th>Account</th><th>Group</th><th>Plan / status</th><th>BG left</th><th>Copy left</th><th>Creative left</th><th>Last sign-in</th><th>Classify</th></tr></thead><tbody id="account-rows"></tbody></table></div><div class="pagination"><button id="previous" type="button">Previous</button><span id="page-caption"></span><button id="next" type="button">Next</button></div></section>
-        <div class="two-col">
-          <section class="panel"><p class="eyebrow">RECENT OPERATIONS</p><h2>The latest activity</h2><ol id="recent-activity" class="activity"></ol><p class="caption">Latest 20 operations in this window. No customer photos or generated copy are exposed here.</p></section>
-          <section class="panel"><p class="eyebrow">RECENT LIVE BILLING</p><h2>Latest money events</h2><ol id="recent-billing" class="activity"></ol><p class="caption">Live-mode USD payment and refund records only. Open Stripe for fees, payout timing and dispute details.</p><a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer">Open Stripe billing â</a></section>
-        </div>
-        <section class="panel"><p class="eyebrow">BUSINESS MEASUREMENT</p><h2>What we can verify</h2><ul class="measurement-list"><li>Accounts, confirmations, recent sign-in and current credits</li><li>Successful / failed operations, background retries and measured provider-cost estimates</li><li>Live collected revenue, refunds, MRR and scheduled subscription cancellations</li></ul><h3>Not yet measured here</h3><p>Stripe fees, true profit, traffic sources, campaign attribution and historical trial-to-paid conversion.</p><p class="caption">Financial recording starts with this release. Earlier Stripe events appear only if they are replayed into the webhook ledger.</p></section>
-      </div>
-      </section>
-      <section id="beta-pane" role="tabpanel" aria-labelledby="beta-tab" hidden>
-        <form id="beta-filters" class="filter-bar">
-          <label>Platform<select id="beta-platform"><option value="all">All platforms</option><option value="poshmark">Poshmark</option><option value="depop">Depop</option><option value="ebay">eBay</option><option value="etsy">Etsy</option><option value="mercari">Mercari</option><option value="grailed">Grailed</option><option value="vestiaire_collective">Vestiaire Collective</option><option value="whatnot">Whatnot</option><option value="shopify">Shopify</option><option value="other">Other</option></select></label>
-          <label>Resale type<select id="beta-relationship"><option value="all">All resale types</option><option value="casual_seller">Casual seller</option><option value="reseller">Reseller</option><option value="vintage_boutique">Vintage / boutique</option><option value="consignment">Consignment</option><option value="creator">Creator</option><option value="other">Other</option></select></label>
-          <label>Monthly listings<select id="beta-volume"><option value="all">All volumes</option><option value="1_5">1â5</option><option value="6_20">6â20</option><option value="21_50">21â50</option><option value="51_100">51â100</option><option value="101_plus">101+</option></select></label>
-          <label>Trial stage<select id="beta-stage"><option value="all">All stages</option><option value="not_started">Not started</option><option value="trial_started">Started, no item</option><option value="first_item">One item</option><option value="two_items">Two items</option><option value="three_items">Three items</option><option value="survey_pending">Survey pending</option><option value="survey_submitted">Survey submitted</option></select></label>
-          <label>Paid choice<select id="beta-paid-choice"><option value="all">All choices</option><option value="undecided">Undecided</option><option value="continue">Continue</option><option value="no_thanks">No thanks</option></select></label>
-          <label>Source code<input id="beta-source" type="search" maxlength="80" placeholder="Exact source code"></label>
-          <button type="submit">Refresh beta</button><button id="beta-export" type="button" disabled>Export testers CSV</button>
-        </form>
-        <p id="beta-status" role="status" aria-live="polite">Open the Beta tab to load its owner-only records.</p>
-        <div id="beta-data" hidden>
-          <p id="beta-caption" class="caption"></p>
-          <section class="panel"><p class="eyebrow">BETA FUNNEL</p><h2>From profile to paid decision</h2><div id="beta-funnel" class="beta-funnel" aria-label="Beta funnel"></div><p class="caption">Counts follow the selected filters. âSurveyâ means submitted; skips remain visible in the tester detail.</p></section>
-          <section class="panel"><div class="section-heading"><div><p class="eyebrow">TESTERS</p><h2>Beta relationships and feedback</h2></div><span id="beta-tester-count" class="badge"></span></div><div class="table-scroll"><table><caption class="sr-only">Beta testers and their trial status</caption><thead><tr><th>Tester</th><th>Platforms</th><th>Source</th><th>Trial</th><th>Survey</th><th>Paid choice</th><th>Issue</th><th>Detail</th></tr></thead><tbody id="beta-tester-rows"></tbody></table></div></section>
-        </div>
-        <dialog id="beta-detail" class="panel beta-detail"><form method="dialog"><button class="dialog-close" aria-label="Close tester detail">Close</button></form><div id="beta-detail-content"></div></dialog>
-      </section>
-    </div>
-  </main>
-  <footer>STUDIO BACK ROOM <span>Private business operations Â· Separate from the shop</span></footer>
-  <script src="config.js"></script><script src="turnstile.js?v=2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-  <script src="shared-supabase-client.js?v=2"></script>
-  <script src="studio-backroom-auth.js?v=1"></script><script src="studio-backroom.js?v=3"></script>
-</body>
+<header class="masthead"><a class="wordmark" href="./">DRESSUP SESH <span>STUDIO BACK ROOM</span></a><div class="header-actions"><span class="private-label">OWNER ONLY</span><button class="ds-hidden" id="sign-out" type="button">Sign out</button></div></header>
+<main>
+<section class="auth-screen" id="auth-screen">
+<form class="panel auth-card" id="auth-form">
+<p class="eyebrow">YOUR BUSINESS, AT A GLANCE</p><h1>Studio Back Room</h1>
+<p>Customer activity, credits and operations for the Listing Studio. Separate from the shop Back Room.</p>
+<label for="auth-email">Owner email</label><input autocomplete="username" id="auth-email" required="" type="email"/>
+<label for="auth-password">Password</label><input autocomplete="current-password" id="auth-password" required="" type="password"/>
+<div aria-label="Security verification" hidden="" id="owner-turnstile"></div>
+<button class="primary" id="password-sign-in" type="submit">Sign in as owner</button>
+<button class="text-button" id="password-reset" type="button">Reset owner password</button>
+<p id="auth-status" role="status">Use your existing owner account and authenticator.</p>
+</form>
+</section>
+<section class="auth-screen ds-hidden" id="mfa-screen">
+<form class="panel auth-card" id="mfa-form">
+<p class="eyebrow">TWO-STEP VERIFICATION</p><h1>Verify it’s you</h1>
+<p id="mfa-enroll-help">Enter the code from your authenticator app.</p>
+<img alt="Authenticator enrollment QR code" class="ds-hidden" id="mfa-qr"/>
+<p class="secret" id="mfa-secret"></p>
+<label for="mfa-code">Authenticator code</label><input autocomplete="one-time-code" id="mfa-code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required="" type="text"/>
+<button class="primary" id="mfa-verify" type="submit">Open Studio Back Room</button><p id="mfa-status" role="status"></p>
+</form>
+</section>
+<div class="ds-hidden" id="backroom-app">
+<section class="intro"><div><p class="eyebrow">LISTING STUDIO · OPERATIONS</p><h1>Your studio, in focus.</h1><p>Know who is using it, what is working, and where to look next.</p></div><p class="read-only">Read only · no billing or credit edits</p></section>
+<nav aria-label="Studio Back Room sections" class="backroom-tabs" role="tablist">
+<button aria-controls="finance-pane" aria-selected="true" id="finance-tab" role="tab" type="button">Operations &amp; finance</button>
+<button aria-controls="beta-pane" aria-selected="false" id="beta-tab" role="tab" type="button">Beta</button>
+<button aria-controls="pro-waitlist-pane" aria-selected="false" id="pro-waitlist-tab" role="tab" type="button">Pro waitlist</button></nav>
+<section aria-labelledby="finance-tab" id="finance-pane" role="tabpanel">
+<form class="filter-bar" id="filters">
+<label>Activity window<select id="days"><option value="7">Last 7 days</option><option selected="" value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label>
+<label>Account group<select id="audience"><option value="customer">Customers</option><option value="unclassified">Unclassified</option><option value="test">Test accounts</option><option value="owner">Owner</option><option value="all">All accounts · includes testing</option></select></label>
+<button id="refresh" type="submit">Refresh</button><button disabled="" id="export" type="button">Export summary CSV</button>
+</form>
+<p aria-live="polite" id="dashboard-status" role="status">Connecting to your Studio records…</p>
+<div hidden="" id="dashboard-data">
+<aside class="notice" hidden="" id="classification-note"><span id="classification-text"></span> <button class="text-button" id="show-unclassified" type="button">Review unclassified accounts</button></aside>
+<p class="caption" id="snapshot-caption"></p>
+<section aria-label="Account overview" class="kpis">
+<article class="panel metric"><span>Accounts</span><strong id="accounts-total">—</strong><small id="accounts-new"></small></article>
+<article class="panel metric"><span>Email confirmed</span><strong id="confirmed-total">—</strong><small>Current accounts in this group</small></article>
+<article class="panel metric"><span>Active users</span><strong id="active-total">—</strong><small>At least one successful operation in window</small></article>
+<article class="panel metric"><span>Active plan records</span><strong id="paid-total">—</strong><small id="paid-note">Account state; compare live subscriptions below</small></article>
+</section>
+<section aria-label="Live Stripe financial overview" class="finance-section">
+<div class="section-heading"><div><p class="eyebrow">LIVE STRIPE · BUSINESS WIDE</p><h2>Money in motion</h2></div><span class="badge" id="finance-window"></span></div>
+<section class="kpis finance-kpis">
+<article class="panel metric"><span>Collected</span><strong id="collected-total">—</strong><small>Successful live payments in window</small></article>
+<article class="panel metric"><span>Refunded</span><strong id="refunded-total">—</strong><small>Successful live refunds in window</small></article>
+<article class="panel metric"><span>Net collected</span><strong id="net-collected">—</strong><small>Collected minus refunds, before Stripe fees</small></article>
+<article class="panel metric"><span>Live MRR</span><strong id="live-mrr">—</strong><small>Active subscription run rate</small></article>
+</section>
+<p class="caption finance-note">Live-mode USD activity across the entire Studio business. These financial totals do not change with the account-group filter and exclude Stripe fees.</p>
+</section>
+<div class="two-col">
+<section class="panel"><p class="eyebrow">REVENUE MIX</p><h2>Where it came from</h2><dl class="facts"><div><dt>Subscriptions</dt><dd id="subscription-collected">—</dd></div><div><dt>Creative packs</dt><dd id="addon-collected">—</dd></div><div><dt>Paid transactions</dt><dd id="paid-transactions">—</dd></div><div><dt>Financial data begins</dt><dd id="finance-started">—</dd></div></dl></section>
+<section class="panel"><p class="eyebrow">BILLING HEALTH</p><h2>What needs attention</h2><dl class="facts"><div><dt>Active live subscriptions</dt><dd id="live-subscriptions">—</dd></div><div><dt>Scheduled to cancel</dt><dd id="live-cancelling">—</dd></div><div><dt>Refund credit reviews</dt><dd id="refund-reviews">—</dd></div><div><dt>Unmatched transactions</dt><dd id="unmatched-transactions">—</dd></div></dl><p class="caption">Creative-pack refunds are queued for manual credit review so credits are never removed incorrectly after use.</p></section>
+</div>
+<div class="two-col">
+<section class="panel"><div class="section-heading"><div><p class="eyebrow">FEATURE USAGE</p><h2>What’s getting made</h2></div><span class="badge" id="items-count"></span></div><div id="usage-list"></div><p class="caption">Counts are processing operations, not marketplace listings or downloaded files.</p></section>
+<section class="panel"><p class="eyebrow">RELIABILITY &amp; COST</p><h2>Keep an eye on</h2><dl class="facts"><div><dt>Failure rate</dt><dd id="failure-rate">—</dd></div><div><dt>In progress / stalled</dt><dd id="pending-count">—</dd></div><div><dt>Background retry rate</dt><dd id="retry-rate">—</dd></div><div><dt>Retry tracking coverage</dt><dd id="retry-coverage">—</dd></div><div><dt>Recorded cost estimates</dt><dd id="cost-total">—</dd></div><div><dt>Cost coverage</dt><dd id="cost-coverage">—</dd></div></dl><p class="caption">Costs include only estimates recorded by provider usage. Missing costs are unknown, not zero. Retry tracking begins with this release.</p></section>
+</div>
+<section class="panel"><p class="eyebrow">DAILY ACTIVITY · UTC</p><h2>A rhythm of use</h2><div class="table-scroll"><table><caption class="sr-only">Daily signups, successful operations and business-wide live payment activity</caption><thead><tr><th>Date</th><th>New accounts</th><th>Backgrounds</th><th>Copy</th><th>Creative</th><th>Failed</th><th>Collected</th><th>Refunded</th></tr></thead><tbody id="daily-rows"></tbody></table></div><p class="caption">Usage follows the selected group. Collected and refunded amounts are business-wide live Stripe activity.</p></section>
+<section class="panel" id="accounts-section"><div class="section-heading"><div><p class="eyebrow">CUSTOMER LOOKUP</p><h2>People &amp; credits</h2></div><form class="search-form" id="search-form"><label class="sr-only" for="account-search">Search accounts by email</label><input id="account-search" maxlength="120" placeholder="Search email" type="search"/><button type="submit">Search</button></form></div><p class="caption">Balances are current, including unused trial bonuses and add-ons. Classifying an account changes analytics only—not its access, plan or credits.</p><div class="table-scroll"><table><caption class="sr-only">Studio accounts and current category credit balances</caption><thead><tr><th>Account</th><th>Group</th><th>Plan / status</th><th>BG left</th><th>Copy left</th><th>Creative left</th><th>Last sign-in</th><th>Classify</th></tr></thead><tbody id="account-rows"></tbody></table></div><div class="pagination"><button id="previous" type="button">Previous</button><span id="page-caption"></span><button id="next" type="button">Next</button></div></section>
+<div class="two-col">
+<section class="panel"><p class="eyebrow">RECENT OPERATIONS</p><h2>The latest activity</h2><ol class="activity" id="recent-activity"></ol><p class="caption">Latest 20 operations in this window. No customer photos or generated copy are exposed here.</p></section>
+<section class="panel"><p class="eyebrow">RECENT LIVE BILLING</p><h2>Latest money events</h2><ol class="activity" id="recent-billing"></ol><p class="caption">Live-mode USD payment and refund records only. Open Stripe for fees, payout timing and dispute details.</p><a href="https://dashboard.stripe.com/" rel="noopener noreferrer" target="_blank">Open Stripe billing ↗</a></section>
+</div>
+<section class="panel"><p class="eyebrow">BUSINESS MEASUREMENT</p><h2>What we can verify</h2><ul class="measurement-list"><li>Accounts, confirmations, recent sign-in and current credits</li><li>Successful / failed operations, background retries and measured provider-cost estimates</li><li>Live collected revenue, refunds, MRR and scheduled subscription cancellations</li></ul><h3>Not yet measured here</h3><p>Stripe fees, true profit, traffic sources, campaign attribution and historical trial-to-paid conversion.</p><p class="caption">Financial recording starts with this release. Earlier Stripe events appear only if they are replayed into the webhook ledger.</p></section>
+</div>
+</section>
+<section aria-labelledby="beta-tab" hidden="" id="beta-pane" role="tabpanel">
+<form class="filter-bar" id="beta-filters">
+<label>Platform<select id="beta-platform"><option value="all">All platforms</option><option value="poshmark">Poshmark</option><option value="depop">Depop</option><option value="ebay">eBay</option><option value="etsy">Etsy</option><option value="mercari">Mercari</option><option value="grailed">Grailed</option><option value="vestiaire_collective">Vestiaire Collective</option><option value="whatnot">Whatnot</option><option value="shopify">Shopify</option><option value="other">Other</option><option value="in_person">In person</option></select></label>
+<label>Resale type<select id="beta-relationship"><option value="all">All resale types</option><option value="casual_seller">Casual seller</option><option value="reseller">Reseller</option><option value="vintage_boutique">Vintage / boutique</option><option value="consignment">Consignment</option><option value="creator">Creator</option><option value="other">Other</option><option value="closet_to_list">Closet to list</option><option value="secondhand_occasional">Buys secondhand / sometimes sells</option><option value="exploring_selling">Exploring selling</option></select></label>
+<label>Monthly listings<select id="beta-volume"><option value="all">All volumes</option><option value="1_5">1–5</option><option value="6_20">6–20</option><option value="21_50">21–50</option><option value="51_100">51–100</option><option value="101_plus">101+</option><option value="6_15">6–15</option><option value="16_30">16–30</option><option value="31_plus">31+</option></select></label>
+<label>Trial stage<select id="beta-stage"><option value="all">All stages</option><option value="not_started">Not started</option><option value="trial_started">Started, no item</option><option value="first_item">One item</option><option value="two_items">Two items</option><option value="three_items">Three items</option><option value="survey_pending">Survey pending</option><option value="survey_submitted">Survey submitted</option></select></label>
+<label>Paid choice<select id="beta-paid-choice"><option value="all">All choices</option><option value="undecided">Undecided</option><option value="continue">Continue</option><option value="no_thanks">No thanks</option></select></label>
+<label>Source code<input id="beta-source" maxlength="80" placeholder="Exact source code" type="search"/></label>
+<button type="submit">Refresh beta</button><button disabled="" id="beta-export" type="button">Export testers CSV</button>
+</form>
+<p aria-live="polite" id="beta-status" role="status">Open the Beta tab to load its owner-only records.</p>
+<div hidden="" id="beta-data">
+<p class="caption" id="beta-caption"></p>
+<section class="panel"><p class="eyebrow">BETA FUNNEL</p><h2>From profile to paid decision</h2><div aria-label="Beta funnel" class="beta-funnel" id="beta-funnel"></div><p class="caption">Counts follow the selected filters. “Survey” means submitted; skips remain visible in the tester detail.</p></section>
+<section class="panel"><div class="section-heading"><div><p class="eyebrow">TESTERS</p><h2>Beta relationships and feedback</h2></div><span class="badge" id="beta-tester-count"></span></div><div class="table-scroll"><table><caption class="sr-only">Beta testers and their trial status</caption><thead><tr><th>Tester</th><th>Platforms</th><th>Source</th><th>Trial</th><th>Survey</th><th>Paid choice</th><th>Issue</th><th>Detail</th></tr></thead><tbody id="beta-tester-rows"></tbody></table></div></section>
+</div>
+<dialog class="panel beta-detail" id="beta-detail"><form method="dialog"><button aria-label="Close tester detail" class="dialog-close">Close</button></form><div id="beta-detail-content"></div></dialog>
+</section>
+<section hidden="" id="pro-waitlist-pane"><div class="section-heading"><div><p class="eyebrow">BULK LISTING PRO</p><h2>The waitlist</h2></div><div><button id="waitlist-refresh" type="button">Refresh</button><button disabled="" id="waitlist-export" type="button">Export CSV</button></div></div><p id="waitlist-status" role="status"></p><div class="table-scroll"><table><caption id="waitlist-caption">Pro waitlist signups</caption><thead><tr><th>Email</th><th>Source</th><th>Joined</th></tr></thead><tbody id="waitlist-rows"></tbody></table></div></section></div>
+</main>
+<footer>STUDIO BACK ROOM <span>Private business operations · Separate from the shop</span></footer>
+<script src="config.js"></script><script src="turnstile.js?v=2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+<script src="shared-supabase-client.js?v=2"></script>
+<script src="studio-backroom-auth.js?v=1"></script><script src="studio-backroom.js?v=3"></script>
+<script src="studio-backroom-waitlist.js?v=approved-20260923"></script></body>
 </html>

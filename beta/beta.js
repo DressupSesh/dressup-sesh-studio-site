@@ -29,11 +29,13 @@
   function showStep(step) {
     state.step = step;
     $$('[data-step]').forEach(panel => { panel.hidden = Number(panel.dataset.step) !== step; });
-    $('#progress-copy').textContent = `Question ${step} of 2`;
+    $('#progress-copy').textContent = `PRIVATE BETA PROFILE · STEP ${step} OF 2`;
     $('#progress-bar').style.width = `${step * 50}%`;
+    $('#question-percent').textContent = `${step * 50}%`;
+    $('.progress-rail').setAttribute('aria-valuenow', String(step * 50));
     $('#back-step').hidden = step === 1;
     $('#step-one-error').textContent = ''; $('#step-two-error').textContent = '';
-    if (step === 2) $('#beta-email').focus({ preventScroll: true });
+    $(`[data-step="${step}"] h2`).focus({ preventScroll: true });
   }
   function openForm() {
     $('#beta-intro').hidden = true; $('#beta-success').hidden = true; $('#beta-card').hidden = false;
@@ -51,8 +53,8 @@
   }
   function validateStepTwo() {
     const value = intake(); const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email);
-    if (!state.platforms.size || !value.ideal_monthly_listing_volume || !validEmail) {
-      $('#step-two-error').textContent = 'Choose at least one platform, your monthly volume, and a valid email.'; return false;
+    if (!value.ideal_monthly_listing_volume || !validEmail) {
+      $('#step-two-error').textContent = 'Choose your monthly volume and enter a valid email.'; return false;
     }
     if (captcha.enabled && !captcha.getToken()) {
       $('#step-two-error').textContent = 'Complete the security check, then continue.'; return false;
@@ -104,14 +106,20 @@
   $('#relationship-choices').addEventListener('click', event => {
     const button = event.target.closest('button[data-value]'); if (!button) return;
     state.relationship = button.dataset.value || '';
-    $$('#relationship-choices button').forEach(item => item.classList.toggle('selected', item === button));
+    $$('#relationship-choices button').forEach(item => { item.classList.toggle('selected', item === button); item.setAttribute('aria-pressed', String(item === button)); });
     $('#step-one-error').textContent = '';
   });
   $('#platform-choices').addEventListener('click', event => {
     const button = event.target.closest('button[data-value]'); if (!button) return;
     const value = button.dataset.value || '';
     if (state.platforms.has(value)) state.platforms.delete(value); else state.platforms.add(value);
-    button.classList.toggle('selected', state.platforms.has(value)); $('#step-two-error').textContent = '';
+    button.classList.toggle('selected', state.platforms.has(value)); button.setAttribute('aria-pressed', String(state.platforms.has(value))); $('#step-two-error').textContent = '';
+  });
+  $('#volume-choices').addEventListener('click', event => {
+    const button = event.target.closest('button[data-value]'); if (!button) return;
+    $('#monthly-volume').value = button.dataset.value;
+    $$('#volume-choices button').forEach(item => { item.classList.toggle('selected', item === button); item.setAttribute('aria-pressed', String(item === button)); });
+    $('#step-two-error').textContent = '';
   });
   $('#beta-form').addEventListener('submit', async event => {
     event.preventDefault(); if (!validateStepTwo() || !client || state.submitting) return;
@@ -123,7 +131,7 @@
       showMessage('Check your email.', `We sent a secure sign-in link to ${value.email}. Open the newest email on any device to enter your three-item Studio trial.`);
     } catch (error) {
       state.submitting = false; button.disabled = false;
-      button.innerHTML = 'Send my secure sign-in email <span aria-hidden="true">&rarr;</span>';
+      button.innerHTML = 'CREATE MY TRIAL ACCOUNT <span aria-hidden="true">&rarr;</span>';
       $('#step-two-error').textContent = error.message || 'We could not send that email. Please try again.';
     } finally { captcha.reset(); }
   });
