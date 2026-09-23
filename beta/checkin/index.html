@@ -8,12 +8,13 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests">
   <title>Dressup Sesh Studio check-in</title>
   <link rel="stylesheet" href="../beta.css?v=1">
-  <link rel="stylesheet" href="beta-survey.css?v=1">
+  <link rel="stylesheet" href="../survey/beta-survey.css?v=1">
+  <link rel="stylesheet" href="/beta-flow-frame.css?v=approved-20260923">
 </head>
 <body>
   <main class="beta-shell survey-shell">
-    <header class="beta-header"><a class="wordmark" href="../../"><span>DS</span> Dressup Sesh <small>Listing Studio</small></a></header>
-    <section class="survey-card" id="checkin-loading"><p class="eyebrow">Private beta</p><h1>Loading your check-inâ¦</h1></section>
+    <header class="beta-header"><a class="wordmark" href="../../"><img class="studio-logo" src="/assets/dressup-sesh-studio-logo.svg" width="3410" height="584" alt="Dressup Sesh. studio"></a></header>
+    <section class="survey-card" id="checkin-loading"><p class="eyebrow">Private beta</p><h1>Loading your check-in…</h1></section>
     <section class="survey-card" id="checkin-auth" hidden>
       <p class="eyebrow">Private beta</p><h1>One quick question.</h1>
       <p class="lede">Sign in with the email you used for Studio so we can save your response privately.</p>
@@ -21,7 +22,7 @@
         <label class="field">Your beta email<input id="checkin-email" type="email" autocomplete="email" required></label>
         <div id="checkin-turnstile" hidden aria-label="Security verification"></div>
         <p id="checkin-auth-error" class="form-error" role="alert"></p>
-        <button class="primary" id="checkin-signin" type="submit">Email me a secure sign-in link <span>â</span></button>
+        <button class="primary" id="checkin-signin" type="submit">Email me a secure sign-in link <span>→</span></button>
       </form>
     </section>
     <section class="survey-card" id="checkin-form-card" hidden>
@@ -30,10 +31,10 @@
       <form id="checkin-form">
         <label class="field">What got in your way?<textarea id="checkin-response" maxlength="1200" required placeholder="For example: I ran out of time, I was unsure where to start, or a result was not what I expected."></textarea></label>
         <p id="checkin-error" class="form-error" role="alert"></p>
-        <button class="primary" id="save-checkin" type="submit">Send feedback <span>â</span></button>
+        <button class="primary" id="save-checkin" type="submit">Send feedback <span>→</span></button>
       </form>
     </section>
-    <section class="survey-card decision-card" id="checkin-thanks" hidden><p class="eyebrow">Thank you</p><h1>That helps a lot.</h1><p class="lede">Your note is saved privately for the Studio team.</p><a class="primary inline-primary" href="../../">Return to Studio <span>â</span></a></section>
+    <section class="survey-card decision-card" id="checkin-thanks" hidden><p class="eyebrow">Thank you</p><h1>That helps a lot.</h1><p class="lede">Your note is saved privately for the Studio team.</p><a class="primary inline-primary" href="../../">Return to Studio <span>→</span></a></section>
   </main>
   <script src="../../config.js"></script><script src="../../turnstile.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>

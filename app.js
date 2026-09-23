@@ -65,7 +65,6 @@ const elements = {
   saveAllAssets: $("#save-all-assets"), saveAllMobile: $("#save-all-mobile"), copyButton: $("#copy-all-global"),
   listingPanel: $("#listing-panel"), photosPanel: $("#photos-panel"), creativePanel: $("#creative-panel"),
   emptyListing: $("#empty-listing"), listingLayout: $("#listing-layout"), sourceStrip: $("#source-strip"),
-  listingReferenceInput: $("#listing-reference-input"), listingReferencePicker: $("#listing-reference-picker"), listingReferenceGrid: $("#listing-reference-grid"),
   listingButton: $("#listing-button"), listingNote: $("#listing-note"), listingAdditional: $("#listing-additional-info"), listingOutput: $("#listing-output"),
   outputPlaceholder: $("#output-placeholder"), listingError: $("#listing-error"),
   authButton: $("#auth-button"), authDialog: $("#auth-dialog"), authForm: $("#auth-form"),
@@ -204,7 +203,7 @@ function updateWorkflowSignals() {
 
   const hasSavableAssets = hasPhotos || listingReady || creativeReady;
   elements.saveAllAssets.disabled = !hasSavableAssets || state.processing || state.creativeGenerating || state.listingGenerating;
-  elements.saveAllMobile.disabled = savableRecordPhotos().length === 0 || state.processing;
+  if (!window.DRESSUP_HANDLES_PHONE_SAVE) elements.saveAllMobile.disabled = savableRecordPhotos().length === 0 || state.processing;
   elements.copyButton.disabled = !listingReady;
 }
 
@@ -238,7 +237,7 @@ function renderBilling(access = state.access) {
     : paid
       ? access.cancel_at_period_end
         ? `Your plan remains active through ${formatBillingDate(access.current_period_end)}.`
-        : "Your monthly credits are designed for 20 items+ with room for a few retries; your mix depends on how you use them."
+        : "Your monthly credits are designed for 20 items+; your mix depends on how you use them."
       : "Three free listings share 15 photo cleanups, 3 copy generations and 3 creative images.";
   elements.billingSubscribe.classList.toggle("hidden", owner || paid);
   elements.billingAddCredits.classList.toggle("hidden", owner || !paid);
@@ -410,7 +409,7 @@ async function joinProWaitlist(email, button, messageElement) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "We could not add your email.");
-    messageElement.textContent = "You’re on the Bulk Listing Pro list.";
+    messageElement.textContent = "You’re on the list. We’ll let you know when Pro is ready to try.";
     return true;
   } catch (error) {
     messageElement.textContent = error.message || "Please try again.";
@@ -534,8 +533,8 @@ async function preparePhoto(photo) {
       photo.file = await convertHeicFile(photo.file);
     }
     photo.preview = URL.createObjectURL(photo.file);
-    photo.status = photo.referenceOnly ? "reference" : "ready";
-    photo.statusLabel = photo.referenceOnly ? "reference only" : "ready";
+    photo.status = "ready";
+    photo.statusLabel = "ready";
   } catch (error) {
     photo.status = "error";
     photo.statusLabel = "try again";
@@ -545,11 +544,10 @@ async function preparePhoto(photo) {
   render();
 }
 
-function addFiles(fileList, referenceOnly = false) {
+function addFiles(fileList) {
   const incoming = [...fileList].filter((file) => file.type.startsWith("image/") || /\.hei(c|f)$/i.test(file.name));
   const remaining = Math.max(0, 20 - state.photos.length);
-  const referenceSlots = referenceOnly ? Math.max(0, 4 - state.photos.filter((photo) => photo.referenceOnly).length) : remaining;
-  const additions = incoming.slice(0, Math.min(remaining, referenceSlots)).map((file) => ({
+  const additions = incoming.slice(0, remaining).map((file) => ({
     id: photoId(file),
     analyticsId: crypto.randomUUID(),
     originalFile: file,
@@ -558,7 +556,8 @@ function addFiles(fileList, referenceOnly = false) {
     preview: "",
     status: isHeicFile(file) ? "converting" : "preparing",
     statusLabel: isHeicFile(file) ? "preparing iPhone photo" : "preparing",
-    referenceOnly,
+    referenceOnly: false,
+    label: "",
     cleanBaseBlob: null,
     editInstructions: [],
     resultUrl: "",
@@ -664,7 +663,6 @@ function clearAllPhotos() {
   elements.copyButton.disabled = true;
   elements.listingError.classList.add("hidden");
   elements.input.value = "";
-  if (elements.listingReferenceInput) elements.listingReferenceInput.value = "";
   $("[data-tab='photos']").click();
   window.scrollTo({ top: 0, behavior: "smooth" });
   render();
@@ -703,7 +701,6 @@ function render() {
   elements.creativeOutput.classList.toggle("generating", state.creativeGenerating);
   const listingSources = selectPhotosForRequest(usablePhotos, 8, true);
   const creativeSources = selectPhotosForRequest(usablePhotos, 6, false);
-  const referencePhotos = usablePhotos.filter((photo) => photo.referenceOnly);
 
   elements.grid.innerHTML = state.photos.map((photo, index) => `
     <article class="photo-card">
@@ -722,32 +719,27 @@ function render() {
         : photo.error
           ? `<button class="photo-retry" type="button" data-retry="${photo.id}" ${state.processing ? "disabled" : ""}>TRY AGAIN</button>`
           : `<span>${Math.max(1, Math.round(photo.file.size / 1024))} KB</span>`}</div>
+      <label class="photo-label">Label photo<select data-photo-label="${photo.id}" ${state.processing || state.listingGenerating || state.creativeGenerating ? "disabled" : ""}>${["", "Measurements", "Front", "Back", "Details", "Fabric close up"].map(label => `<option value="${label}" ${photo.label === label ? "selected" : ""}>${label || "No label"}</option>`).join("")}</select></label>
       <button class="reference-toggle ${photo.referenceOnly ? "selected" : ""}" type="button" data-reference-only="${photo.id}" ${!photo.preview || state.processing || state.creativeGenerating ? "disabled" : ""}>${photo.referenceOnly ? "REFERENCE ONLY ✓" : "MARK REFERENCE ONLY"}</button>
       ${photo.error ? `<p class="error-text">${photo.error}</p>` : ""}
-    </article>`).join("") + (state.photos.length < 20 ? `<button class="add-card" id="add-more"><span>＋</span>Add more</button>` : "");
+    </article>`).join("") + (state.photos.length < 20 ? `<button class="add-card" id="add-more"><span>+</span>Add more</button>` : "");
 
-  elements.sourceStrip.innerHTML = listingSources.map((photo, index) =>
+  const listingReferences = usablePhotos.filter(isListingReference);
+  const referenceGrid = document.querySelector("#listing-reference-grid");
+  referenceGrid.innerHTML = listingReferences.length ? listingReferences.map((photo, index) => `<figure><img src="${photo.preview}" alt="Reference photo ${index + 1}"><figcaption>${photo.label || "Reference only"}</figcaption></figure>`).join("") : "<p>Your labeled photos will appear here.</p>";
+  elements.sourceStrip.innerHTML = usablePhotos.filter(photo => !photo.referenceOnly).map((photo, index) =>
     `<img class="${photo.referenceOnly ? "reference-source" : ""}" src="${photo.preview}" alt="${photo.referenceOnly ? "Reference-only" : "Product"} listing source ${index + 1}" title="${photo.referenceOnly ? "Reference Only" : "Product photo"}">`).join("") +
-    (usablePhotos.length > listingSources.length ? `<span>+${usablePhotos.length - listingSources.length}</span>` : "");
-
-  elements.listingReferenceGrid.classList.toggle("hidden", referencePhotos.length === 0);
-  elements.listingReferenceGrid.innerHTML = referencePhotos.map((photo, index) => `
-    <article>
-      <img src="${photo.preview}" alt="Reference detail ${index + 1}">
-      <span>PRIORITY</span>
-      <button type="button" data-remove-reference="${photo.id}" aria-label="Remove reference photo ${index + 1}">×</button>
-    </article>`).join("");
-  elements.listingReferencePicker.disabled = state.processing || state.listingGenerating || state.photos.length >= 20 || referencePhotos.length >= 4;
+    "";
 
   elements.creativeSourceStrip.innerHTML = creativeSources.map((photo, index) =>
     `<img class="${photo.referenceOnly ? "reference-source" : ""}" src="${photo.preview}" alt="${photo.referenceOnly ? "Reference-only" : "Product"} creative source ${index + 1}" title="${photo.referenceOnly ? "Reference Only" : "Product photo"}">`).join("") +
-    (usablePhotos.length > creativeSources.length ? `<span>+${usablePhotos.length - creativeSources.length}</span>` : "");
+    (productPhotos.length > creativeSources.length ? `<span>+${productPhotos.length - creativeSources.length}</span>` : "");
 
+  $$('[data-photo-label]').forEach(select => select.addEventListener('change', () => { const photo = state.photos.find(photo => photo.id === select.dataset.photoLabel); if (photo) { photo.label = select.value; render(); } }));
   $$('[data-remove]').forEach((button) => button.addEventListener("click", () => removePhoto(button.dataset.remove)));
   $$('[data-edit]').forEach((button) => button.addEventListener("click", () => { void openPhotoEditor(button.dataset.edit); }));
   $$('[data-retry]').forEach((button) => button.addEventListener("click", () => { void processSinglePhoto(button.dataset.retry); }));
   $$('[data-reference-only]').forEach((button) => button.addEventListener("click", () => toggleReferenceOnly(button.dataset.referenceOnly)));
-  $$('[data-remove-reference]').forEach((button) => button.addEventListener("click", () => removePhoto(button.dataset.removeReference)));
   $("#add-more")?.addEventListener("click", () => elements.input.click());
   updateWorkflowSignals();
 }
@@ -1537,9 +1529,12 @@ function selectEvenly(photos, maximum) {
   });
 }
 
+function isListingReference(photo) { return photo.referenceOnly || Boolean(photo.label); }
+
 function selectPhotosForRequest(photos, maximum, referenceFirst = true) {
-  const references = photos.filter((photo) => photo.referenceOnly);
-  const products = photos.filter((photo) => !photo.referenceOnly);
+  if (!referenceFirst) return selectEvenly(photos.filter(photo => !photo.referenceOnly), maximum);
+  const references = photos.filter(isListingReference);
+  const products = photos.filter((photo) => !isListingReference(photo));
   const reservedReferences = Math.min(references.length, Math.floor(maximum / 2));
   const selectedReferences = selectEvenly(references, reservedReferences);
   const selectedProducts = selectEvenly(products, Math.min(products.length, maximum - selectedReferences.length));
@@ -1579,14 +1574,14 @@ async function createListing() {
   if (additionalInfo) body.append("additional_info", additionalInfo);
   const usablePhotos = state.photos.filter((photo) => photo.preview && !photo.error);
   const selectedPhotos = selectPhotosForRequest(usablePhotos, 8, true);
-  const referenceCount = selectedPhotos.filter((photo) => photo.referenceOnly).length;
+  const referenceCount = selectedPhotos.filter(isListingReference).length;
   body.append("reference_count", String(referenceCount));
   try {
     for (const [index, photo] of selectedPhotos.entries()) {
       elements.listingButton.textContent = `PREPARING ${index + 1} OF ${selectedPhotos.length}…`;
-      const source = photo.referenceOnly ? photo.file : photo.resultBlob || photo.file;
+      const source = isListingReference(photo) ? photo.file : photo.resultBlob || photo.file;
       const compactImage = await prepareListingImage(source);
-      const role = photo.referenceOnly ? "reference" : "product";
+      const role = isListingReference(photo) ? "reference" : "product";
       body.append("images", compactImage, `${role}-${index + 1}.jpg`);
     }
     elements.listingButton.textContent = "WRITING LISTING…";
@@ -1613,7 +1608,7 @@ async function createListing() {
   } finally {
     state.listingGenerating = false;
     elements.listingButton.disabled = false;
-    elements.listingButton.textContent = "CREATE TITLE + DESCRIPTION";
+    elements.listingButton.textContent = "CREATE LISTING COPY";
     updateWorkflowSignals();
   }
 }
@@ -1646,7 +1641,7 @@ async function generateCreativeImage() {
     for (const [index, photo] of selectedPhotos.entries()) {
       elements.creativeGenerate.textContent = `PREPARING SOURCE ${index + 1} OF ${selectedPhotos.length}…`;
       const compactImage = await prepareListingImage(photo.file);
-      const role = photo.referenceOnly ? "reference" : "product";
+      const role = "product";
       body.append("images", compactImage, `${role}-${index + 1}.jpg`);
     }
 
@@ -1705,11 +1700,6 @@ elements.saveAllAssets.addEventListener("click", saveAllItemAssets);
 if (!window.DRESSUP_HANDLES_PHONE_SAVE) elements.saveAllMobile.addEventListener("click", saveAllPhotosToPhone);
 elements.clearAll.addEventListener("click", clearAllPhotos);
 elements.listingButton.addEventListener("click", createListing);
-elements.listingReferencePicker.addEventListener("click", () => elements.listingReferenceInput.click());
-elements.listingReferenceInput.addEventListener("change", () => {
-  addFiles(elements.listingReferenceInput.files, true);
-  elements.listingReferenceInput.value = "";
-});
 elements.emptyListing.addEventListener("click", () => { $("[data-tab='photos']").click(); elements.input.click(); });
 elements.emptyCreative.addEventListener("click", () => { $("[data-tab='photos']").click(); elements.input.click(); });
 elements.creativeGenerate.addEventListener("click", generateCreativeImage);
@@ -1781,7 +1771,7 @@ elements.creativeReference.addEventListener("change", async () => {
     elements.creativeError.textContent = "That reference photo could not be prepared. Please try a JPG or PNG.";
     elements.creativeError.classList.remove("hidden");
   } finally {
-    elements.referencePicker.innerHTML = "<span>＋</span><strong>Add inspiration photo</strong><small>JPG, PNG, WEBP or HEIC</small>";
+    elements.referencePicker.innerHTML = "<span>+</span><strong>Add inspiration photo</strong><small>JPG, PNG, WEBP or HEIC</small>";
   }
 });
 
@@ -1814,7 +1804,7 @@ function openAuthDialog(action) {
 }
 
 elements.gateSignIn.addEventListener("click", () => openAuthDialog());
-elements.gateCreate.addEventListener("click", () => openAuthDialog("trial"));
+elements.gateCreate.addEventListener("click", event => { event.preventDefault(); window.location.assign("/beta/"); });
 
 elements.authButton.addEventListener("click", async () => {
   if (state.session && supabase) {
@@ -1882,6 +1872,7 @@ elements.proWaitlistForm.addEventListener("submit", async (event) => {
   const button = elements.proWaitlistForm.querySelector("button");
   if (await joinProWaitlist(email, button, elements.proWaitlistMessage)) {
     elements.proWaitlistForm.reset();
+    elements.proWaitlistForm.hidden = true;
   }
 });
 

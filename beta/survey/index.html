@@ -9,39 +9,40 @@
   <title>Your Dressup Sesh Beta</title>
   <link rel="stylesheet" href="../beta.css?v=1">
   <link rel="stylesheet" href="beta-survey.css?v=1">
+  <link rel="stylesheet" href="/beta-flow-frame.css?v=approved-20260923">
 </head>
 <body>
   <main class="beta-shell survey-shell">
-    <header class="beta-header"><a class="wordmark" href="../../"><span>DS</span> Dressup Sesh <small>Listing Studio</small></a></header>
-    <section class="survey-card" id="loading-card"><p class="eyebrow">Private beta</p><h1>Loading your next stepâ¦</h1></section>
+    <header class="beta-header"><a class="wordmark" href="../../"><img class="studio-logo" src="/assets/dressup-sesh-studio-logo.svg" width="3410" height="584" alt="Dressup Sesh. studio"></a></header>
+    <section class="survey-card" id="loading-card"><p class="eyebrow">Private beta</p><h1>Loading your next step…</h1></section>
     <section class="survey-card" id="survey-card" hidden>
       <p class="eyebrow">You finished your three free items</p>
       <h1>How did it feel?</h1>
       <p class="lede">A few honest answers help shape what we build next. You can skip this and come back once.</p>
       <form id="survey-form" novalidate>
         <label class="field">Were the results ready to list?
-          <select id="output-readiness" required><option value="">Choose one</option><option value="ready_now">Yes, ready to list</option><option value="small_edits">Mostlyâjust small edits</option><option value="not_ready">Not ready yet</option></select>
+          <select id="output-readiness" required><option value="">Choose one</option><option value="ready_now">Yes, ready to list</option><option value="small_edits">Mostly—just small edits</option><option value="not_ready">Not ready yet</option></select>
         </label>
         <p class="field-label">What was most valuable?</p>
         <div class="choice-grid survey-choices" id="value-choices"><button type="button" data-value="photo_cleanup">Photo cleanup</button><button type="button" data-value="listing_copy">Listing copy</button><button type="button" data-value="creative_images">Creative images</button><button type="button" data-value="whole_workflow">The whole workflow</button><button type="button" data-value="other">Something else</button></div>
         <label class="field">What felt difficult or got in your way?<textarea id="friction" maxlength="1200" placeholder="Optional, but specific notes are especially useful."></textarea></label>
         <label class="field">How many listings do you realistically want to make each month?
-          <select id="likely-volume" required><option value="">Choose one</option><option value="1_5">1â5 items</option><option value="6_20">6â20 items</option><option value="21_50">21â50 items</option><option value="51_100">51â100 items</option><option value="101_plus">101+ items</option></select>
+          <select id="likely-volume" required><option value="">Choose one</option><option value="1_5">1–5 items</option><option value="6_20">6–20 items</option><option value="21_50">21–50 items</option><option value="51_100">51–100 items</option><option value="101_plus">101+ items</option></select>
         </label>
-        <label class="field">Does $12.99/month for about 20 items feel right?
-          <select id="price-fit" required><option value="">Choose one</option><option value="good_fit">Yes, that feels right</option><option value="maybe">MaybeâI need a little more time</option><option value="not_a_fit">No, not for me</option></select>
+        <label class="field">Does $12.99/month for 20 items+ feel right?
+          <select id="price-fit" required><option value="">Choose one</option><option value="good_fit">Yes, that feels right</option><option value="maybe">Maybe—I need a little more time</option><option value="not_a_fit">No, not for me</option></select>
         </label>
         <label class="field">What would make it a definite yes?<textarea id="definite-yes" maxlength="1200" placeholder="Optional."></textarea></label>
         <p class="form-error" id="survey-error" role="alert"></p>
-        <button class="primary" id="submit-survey" type="submit">Save my feedback <span>â</span></button>
+        <button class="primary" id="submit-survey" type="submit">Save my feedback <span>→</span></button>
       </form>
       <button class="skip-button" id="skip-survey" type="button">Skip for now</button>
     </section>
     <section class="survey-card decision-card" id="decision-card" hidden>
       <p class="eyebrow">Thank you</p>
-      <h1>Keep listing when youâre ready.</h1>
-      <p class="lede">Continue at $12.99/month for about 20 items. No automatic charge: choosing continue opens checkout, and you are charged only if you complete it.</p>
-      <button class="primary" id="continue-beta" type="button">Continue to secure checkout <span>â</span></button>
+      <h1>Keep listing when you’re ready.</h1>
+      <p class="lede">Continue at $12.99/month for 20 items+. No automatic charge: choosing continue opens checkout, and you are charged only if you complete it.</p>
+      <button class="primary" id="continue-beta" type="button">Continue to secure checkout <span>→</span></button>
       <button class="skip-button" id="no-thanks" type="button">No thanks for now</button>
     </section>
   </main>
