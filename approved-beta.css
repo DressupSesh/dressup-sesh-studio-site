@@ -270,3 +270,7 @@ button{cursor:pointer}
 .waitlist-dialog{max-height:90dvh;overflow-y:auto}.waitlist-dialog .field{display:block}.waitlist-dialog .field input{margin-top:10px}.waitlist-consent{font-size:.875rem;color:var(--muted);line-height:1.5}.waitlist-dialog .carousel-cta{width:100%;justify-content:center;border:0}.carousel-cta:disabled{opacity:.65;cursor:wait}#pro-waitlist-status{margin-bottom:0;line-height:1.5}#pro-waitlist-status:empty{display:none}#pro-waitlist-status[data-error=true]{color:#9b2530}
 
 .form-error{color:#9b2530;font-size:1rem;line-height:1.5}.form-error:empty{display:none}.turnstile{margin-top:20px}.beta-success h2{position:relative}.beta-page .outline-link{font-size:.8rem;letter-spacing:0;text-transform:none}.beta-page .site-header{gap:16px;flex-wrap:wrap}
+
+/* Keep the approved longer brand promise legible inside the beta invitation. */
+.beta-page .campaign-panel h1{font-size:clamp(3.5rem,6.5vw,6.7rem);line-height:.98}
+@media(max-width:600px){.beta-page .campaign-panel h1{font-size:clamp(2.9rem,12vw,4.25rem);line-height:1.02}}
