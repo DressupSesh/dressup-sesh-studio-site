@@ -339,7 +339,7 @@ async function waitForGeneration(id, allowMissing = false) {
         await generationPause(1200);
         continue;
       }
-      throw new Error("The photo upload stopped before generation began. No credit was used for this request.");
+      throw new Error("We couldn't confirm this upload. Reopen Studio to check its status before trying again.");
     }
     if (job.status === "succeeded") return job;
     if (job.status === "failed") {
