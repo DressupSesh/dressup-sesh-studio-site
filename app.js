@@ -8,6 +8,7 @@ const PENDING_CONFIRMATION_EMAIL_KEY = "dressupSeshPendingConfirmationEmail";
 let betaSurveyRouting = false;
 const activeGenerationJobs = new Set();
 const appliedGenerationJobs = new Set();
+const uncertainGenerationOperations = new Set();
 let recoveringGenerationJobs = false;
 let recoveredForUser = "";
 
@@ -288,6 +289,27 @@ function generationEndpoint(query = "") {
   return `${config.supabaseUrl}/functions/v1/studio-generation-jobs${query}`;
 }
 
+function generationOperationKey(operation, clientPhotoId = "") {
+  return operation === "background_remove" ? `${operation}:${clientPhotoId}` : operation;
+}
+
+function blockUncertainGeneration(operation, clientPhotoId = "") {
+  uncertainGenerationOperations.add(generationOperationKey(operation, clientPhotoId));
+  if (operation === "background_remove") {
+    const photo = state.photos.find((item) => item.analyticsId === clientPhotoId);
+    if (photo) photo.retryBlocked = true;
+  }
+  render();
+}
+
+function clearUncertainGeneration(operation, clientPhotoId = "") {
+  uncertainGenerationOperations.delete(generationOperationKey(operation, clientPhotoId));
+  if (operation === "background_remove") {
+    const photo = state.photos.find((item) => item.analyticsId === clientPhotoId);
+    if (photo) photo.retryBlocked = false;
+  }
+}
+
 async function waitUntilVisible() {
   if (!document.hidden) return;
   await new Promise((resolve) => {
@@ -315,7 +337,9 @@ async function getGenerationJob(id) {
   });
   if (!response.ok) {
     if (response.status === 404) return null;
-    throw new Error("Could not check the generation. Your result may still be processing.");
+    const error = new Error("Could not check the generation. Your result may still be processing.");
+    error.code = "STATUS_UNKNOWN";
+    throw error;
   }
   return (await response.json()).job;
 }
@@ -330,7 +354,10 @@ async function waitForGeneration(id, allowMissing = false) {
       job = await getGenerationJob(id);
       networkFailures = 0;
     } catch (error) {
-      if (++networkFailures > 6) throw error;
+      if (++networkFailures > 6) {
+        error.code = "STATUS_UNKNOWN";
+        throw error;
+      }
       await generationPause(2000);
       continue;
     }
@@ -339,7 +366,9 @@ async function waitForGeneration(id, allowMissing = false) {
         await generationPause(1200);
         continue;
       }
-      throw new Error("We couldn't confirm this upload. Reopen Studio to check its status before trying again.");
+      const error = new Error("We couldn't confirm this upload. Reopen Studio to check its status before trying again.");
+      error.code = "STATUS_UNKNOWN";
+      throw error;
     }
     if (job.status === "succeeded") return job;
     if (job.status === "failed") {
@@ -348,17 +377,30 @@ async function waitForGeneration(id, allowMissing = false) {
       throw error;
     }
     if (Date.now() - new Date(job.created_at).getTime() > 8 * 60000) {
-      throw new Error("This generation needs a status check. Please don't retry or spend another credit yet.");
+      const error = new Error("This generation needs a status check. Please don't retry or spend another credit yet.");
+      error.code = "STATUS_UNKNOWN";
+      throw error;
     }
     await generationPause(2500);
   }
 }
 
 async function generationResult(job) {
-  const response = await fetch(generationEndpoint(`?id=${encodeURIComponent(job.id)}&result=1`), {
-    headers: generationHeaders(), cache: "no-store"
-  });
-  if (!response.ok) throw new Error("Your result is saved, but the download did not load. Return to Studio to recover it.");
+  let response;
+  try {
+    response = await fetch(generationEndpoint(`?id=${encodeURIComponent(job.id)}&result=1`), {
+      headers: generationHeaders(), cache: "no-store"
+    });
+  } catch {
+    const error = new Error("Your result is saved. Reopen Studio to recover it before generating again.");
+    error.code = "STATUS_UNKNOWN";
+    throw error;
+  }
+  if (!response.ok) {
+    const error = new Error("Your result is saved, but the download did not load. Return to Studio to recover it.");
+    error.code = "STATUS_UNKNOWN";
+    throw error;
+  }
   return response;
 }
 
@@ -387,13 +429,20 @@ async function runGeneration(form, operation, clientPhotoId = "") {
     const job = await waitForGeneration(id, true);
     const result = await generationResult(job);
     appliedGenerationJobs.add(id);
+    clearUncertainGeneration(operation, clientPhotoId);
     return result;
+  } catch (error) {
+    if (error.code === "STATUS_UNKNOWN") blockUncertainGeneration(operation, clientPhotoId);
+    throw error;
   } finally {
     activeGenerationJobs.delete(id);
   }
 }
 
 function showRecoveredProblem(job, message) {
+  if (job.error_code === "STATUS_UNKNOWN" || /status check/i.test(message)) {
+    blockUncertainGeneration(job.operation, job.client_photo_id || "");
+  }
   const target = job.operation === "listing_copy" ? elements.listingError
     : job.operation === "creative_image" ? elements.creativeError : null;
   if (target) {
@@ -457,6 +506,7 @@ async function restoreGeneration(job) {
     renderCreativeResults();
   }
   appliedGenerationJobs.add(job.id);
+  clearUncertainGeneration(job.operation, job.client_photo_id || "");
   render();
   void refreshAccess();
 }
@@ -905,6 +955,7 @@ function clearAllPhotos() {
   });
   state.photos = [];
   state.clientItemId = crypto.randomUUID();
+  uncertainGenerationOperations.clear();
   keepActiveItem();
   state.processedCount = 0;
   removeCreativeReference();
@@ -944,13 +995,15 @@ function render() {
         : "ALL PHOTOS READY";
   elements.emptyListing.classList.toggle("hidden", hasPhotos || Boolean(elements.listingOutput.textContent.trim()));
   elements.listingLayout.classList.toggle("hidden", !hasPhotos && !elements.listingOutput.textContent.trim());
-  elements.listingButton.disabled = !configured || !state.session || !usablePhotos.length || isPreparing;
+  elements.listingButton.disabled = !configured || !state.session || !usablePhotos.length || isPreparing || uncertainGenerationOperations.has("listing_copy");
+  if (uncertainGenerationOperations.has("listing_copy")) elements.listingButton.textContent = "STATUS CHECK REQUIRED";
   elements.listingNote.classList.toggle("hidden", configured && Boolean(state.session));
   elements.listingNote.textContent = configured ? "Sign in to activate listing generation." : "Listing generation is temporarily unavailable.";
   elements.emptyCreative.classList.toggle("hidden", hasPhotos || state.creativeResults.length > 0);
   elements.creativeLayout.classList.toggle("hidden", !hasPhotos && !state.creativeResults.length);
-  elements.creativeGenerate.disabled = !configured || !state.session || !productPhotos.length || isPreparing || state.creativeGenerating;
-  elements.creativeGenerate.textContent = state.creativeGenerating ? "GENERATING…" : creativeLabels[state.creativeType];
+  elements.creativeGenerate.disabled = !configured || !state.session || !productPhotos.length || isPreparing || state.creativeGenerating || uncertainGenerationOperations.has("creative_image");
+  elements.creativeGenerate.textContent = uncertainGenerationOperations.has("creative_image")
+    ? "STATUS CHECK REQUIRED" : state.creativeGenerating ? "GENERATING…" : creativeLabels[state.creativeType];
   elements.creativeSaveAll.disabled = !state.creativeResults.length || state.creativeGenerating;
   elements.creativeOutput.classList.toggle("generating", state.creativeGenerating);
   const listingSources = selectPhotosForRequest(usablePhotos, 8, true);
@@ -971,7 +1024,9 @@ function render() {
         : photo.resultUrl
         ? `<span class="photo-actions"><button type="button" data-retry="${photo.id}">${photo.editInstructions?.length ? "RETRY + KEEP EDITS" : "REPROCESS"}</button><button type="button" data-edit="${photo.id}">EDIT</button><a href="${photo.resultUrl}" download="${resultFileName(photo, index)}">DOWNLOAD</a></span>`
         : photo.error
-          ? `<button class="photo-retry" type="button" data-retry="${photo.id}" ${state.processing ? "disabled" : ""}>TRY AGAIN</button>`
+          ? photo.retryBlocked
+            ? "<span>STATUS CHECK REQUIRED</span>"
+            : `<button class="photo-retry" type="button" data-retry="${photo.id}" ${state.processing ? "disabled" : ""}>TRY AGAIN</button>`
           : `<span>${Math.max(1, Math.round(photo.file.size / 1024))} KB</span>`}</div>
       <label class="photo-label">Label photo<select data-photo-label="${photo.id}" ${state.processing || state.listingGenerating || state.creativeGenerating ? "disabled" : ""}>${["", "Measurements", "Front", "Back", "Details", "Fabric close up"].map(label => `<option value="${label}" ${photo.label === label ? "selected" : ""}>${label || "No label"}</option>`).join("")}</select></label>
       <button class="reference-toggle ${photo.referenceOnly ? "selected" : ""}" type="button" data-reference-only="${photo.id}" ${!photo.preview || state.processing || state.creativeGenerating ? "disabled" : ""}>${photo.referenceOnly ? "REFERENCE ONLY ✓" : "MARK REFERENCE ONLY"}</button>
@@ -1401,7 +1456,7 @@ async function processPhotos() {
 
 async function processSinglePhoto(photoId) {
   const photo = state.photos.find((item) => item.id === photoId);
-  if (!photo || photo.referenceOnly || state.processing) return;
+  if (!photo || photo.referenceOnly || photo.retryBlocked || state.processing) return;
 
   state.processing = true;
   state.processedCount = 0;
@@ -1800,6 +1855,10 @@ function cleanListingText(value = "") {
 }
 
 async function createListing() {
+  if (uncertainGenerationOperations.has("listing_copy")) {
+    void recoverRecentGenerations();
+    return;
+  }
   if (!configured || !state.session || !state.photos.length) {
     if (!state.session) elements.authDialog.showModal();
     return;
@@ -1839,8 +1898,8 @@ async function createListing() {
     elements.listingError.classList.remove("hidden");
   } finally {
     state.listingGenerating = false;
-    elements.listingButton.disabled = false;
-    elements.listingButton.textContent = "CREATE LISTING COPY";
+    elements.listingButton.disabled = uncertainGenerationOperations.has("listing_copy");
+    elements.listingButton.textContent = uncertainGenerationOperations.has("listing_copy") ? "STATUS CHECK REQUIRED" : "CREATE LISTING COPY";
     updateWorkflowSignals();
   }
 }
@@ -1853,6 +1912,10 @@ function base64ToBlob(value, mimeType = "image/jpeg") {
 }
 
 async function generateCreativeImage() {
+  if (uncertainGenerationOperations.has("creative_image")) {
+    void recoverRecentGenerations();
+    return;
+  }
   if (!configured || !state.session || !state.photos.length || state.creativeGenerating) return;
   const usablePhotos = state.photos.filter((photo) => photo.preview && !photo.error);
   const productPhotos = usablePhotos.filter((photo) => !photo.referenceOnly);
