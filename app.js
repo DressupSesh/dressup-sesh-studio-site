@@ -288,9 +288,9 @@ function generationEndpoint(query = "") {
   return `${config.supabaseUrl}/functions/v1/studio-generation-jobs${query}`;
 }
 
-function waitUntilVisible() {
-  if (!document.hidden) return Promise.resolve();
-  return new Promise((resolve) => {
+async function waitUntilVisible() {
+  if (!document.hidden) return;
+  await new Promise((resolve) => {
     const onVisible = () => {
       if (!document.hidden) {
         document.removeEventListener("visibilitychange", onVisible);
@@ -299,6 +299,12 @@ function waitUntilVisible() {
     };
     document.addEventListener("visibilitychange", onVisible);
   });
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) state.session = data.session;
+  } catch {
+    // Status checks will retry after connectivity returns.
+  }
 }
 
 const generationPause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -363,23 +369,20 @@ async function runGeneration(form, operation, clientPhotoId = "") {
   keepActiveItem();
   activeGenerationJobs.add(id);
   try {
+    let response = null;
     try {
-      const response = await fetch(generationEndpoint(), {
+      response = await fetch(generationEndpoint(), {
         method: "POST", headers: generationHeaders(), body: form
       });
-      if (!response.ok) {
-        const problem = await response.json().catch(() => ({}));
-        handleApiProblem(problem);
-        throw new Error(problem.error || "The generation could not be started.");
-      }
-    } catch (error) {
+    } catch {
       // iOS may discard the response after the upload succeeds. Check the job
       // before deciding whether another request could safely be sent.
-      if (!(await getGenerationJob(id).catch(() => null))) {
-        await waitUntilVisible();
-      }
-      const job = await getGenerationJob(id).catch(() => null);
-      if (!job) throw error;
+      await waitUntilVisible();
+    }
+    if (response && !response.ok) {
+      const problem = await response.json().catch(() => ({}));
+      handleApiProblem(problem);
+      throw new Error(problem.error || "The generation could not be started.");
     }
     const job = await waitForGeneration(id, true);
     const result = await generationResult(job);
