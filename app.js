@@ -6,6 +6,10 @@ const supabase = configured ? createClient(config.supabaseUrl, config.supabasePu
 const PENDING_AUTH_ACTION_KEY = "dressupSeshPendingAuthAction";
 const PENDING_CONFIRMATION_EMAIL_KEY = "dressupSeshPendingConfirmationEmail";
 let betaSurveyRouting = false;
+const activeGenerationJobs = new Set();
+const appliedGenerationJobs = new Set();
+let recoveringGenerationJobs = false;
+let recoveredForUser = "";
 
 function readSessionValue(key) {
   try {
@@ -262,6 +266,236 @@ function handleApiProblem(problem = {}) {
   }
 }
 
+function generationHeaders() {
+  if (!state.session) throw new Error("Sign in again to recover your result.");
+  return {
+    apikey: config.supabasePublishableKey,
+    Authorization: `Bearer ${state.session.access_token}`
+  };
+}
+
+function activeItemKey(userId) {
+  return `dressupSeshActiveItem:${userId}`;
+}
+
+function keepActiveItem() {
+  if (state.session?.user?.id) {
+    try { localStorage.setItem(activeItemKey(state.session.user.id), state.clientItemId); } catch { /* optional */ }
+  }
+}
+
+function generationEndpoint(query = "") {
+  return `${config.supabaseUrl}/functions/v1/studio-generation-jobs${query}`;
+}
+
+function waitUntilVisible() {
+  if (!document.hidden) return Promise.resolve();
+  return new Promise((resolve) => {
+    const onVisible = () => {
+      if (!document.hidden) {
+        document.removeEventListener("visibilitychange", onVisible);
+        resolve();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+  });
+}
+
+const generationPause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function getGenerationJob(id) {
+  const response = await fetch(generationEndpoint(`?id=${encodeURIComponent(id)}`), {
+    headers: generationHeaders(), cache: "no-store"
+  });
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    throw new Error("Could not check the generation. Your result may still be processing.");
+  }
+  return (await response.json()).job;
+}
+
+async function waitForGeneration(id, allowMissing = false) {
+  let missing = 0;
+  let networkFailures = 0;
+  for (;;) {
+    await waitUntilVisible();
+    let job;
+    try {
+      job = await getGenerationJob(id);
+      networkFailures = 0;
+    } catch (error) {
+      if (++networkFailures > 6) throw error;
+      await generationPause(2000);
+      continue;
+    }
+    if (!job) {
+      if (allowMissing && ++missing < 4) {
+        await generationPause(1200);
+        continue;
+      }
+      throw new Error("The photo upload stopped before generation began. No credit was used for this request.");
+    }
+    if (job.status === "succeeded") return job;
+    if (job.status === "failed") {
+      const error = new Error(job.error || "Generation failed.");
+      error.code = job.error_code;
+      throw error;
+    }
+    if (Date.now() - new Date(job.created_at).getTime() > 8 * 60000) {
+      throw new Error("This generation needs a status check. Please don't retry or spend another credit yet.");
+    }
+    await generationPause(2500);
+  }
+}
+
+async function generationResult(job) {
+  const response = await fetch(generationEndpoint(`?id=${encodeURIComponent(job.id)}&result=1`), {
+    headers: generationHeaders(), cache: "no-store"
+  });
+  if (!response.ok) throw new Error("Your result is saved, but the download did not load. Return to Studio to recover it.");
+  return response;
+}
+
+async function runGeneration(form, operation, clientPhotoId = "") {
+  const id = crypto.randomUUID();
+  form.append("job_id", id);
+  form.append("operation", operation);
+  keepActiveItem();
+  activeGenerationJobs.add(id);
+  try {
+    try {
+      const response = await fetch(generationEndpoint(), {
+        method: "POST", headers: generationHeaders(), body: form
+      });
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}));
+        handleApiProblem(problem);
+        throw new Error(problem.error || "The generation could not be started.");
+      }
+    } catch (error) {
+      // iOS may discard the response after the upload succeeds. Check the job
+      // before deciding whether another request could safely be sent.
+      if (!(await getGenerationJob(id).catch(() => null))) {
+        await waitUntilVisible();
+      }
+      const job = await getGenerationJob(id).catch(() => null);
+      if (!job) throw error;
+    }
+    const job = await waitForGeneration(id, true);
+    const result = await generationResult(job);
+    appliedGenerationJobs.add(id);
+    return result;
+  } finally {
+    activeGenerationJobs.delete(id);
+  }
+}
+
+function showRecoveredProblem(job, message) {
+  const target = job.operation === "listing_copy" ? elements.listingError
+    : job.operation === "creative_image" ? elements.creativeError : null;
+  if (target) {
+    target.textContent = message;
+    target.classList.remove("hidden");
+    return;
+  }
+  let notice = document.querySelector("#generation-recovery-notice");
+  if (!notice) {
+    notice = document.createElement("p");
+    notice.id = "generation-recovery-notice";
+    notice.className = "error-text";
+    elements.actionBar.append(notice);
+    elements.actionBar.classList.remove("hidden");
+  }
+  notice.textContent = message;
+}
+
+async function restoreGeneration(job) {
+  if (appliedGenerationJobs.has(job.id) || activeGenerationJobs.has(job.id)) return;
+  const response = await generationResult(job);
+  if (job.operation === "background_remove") {
+    const cleaned = await response.blob();
+    const blob = await applySelectedPhotoBackground(cleaned);
+    let photo = state.photos.find((item) => item.analyticsId === job.client_photo_id);
+    if (!photo) {
+      const file = new File([blob], "recovered-studio-photo.png", { type: blob.type || "image/png" });
+      photo = {
+        id: crypto.randomUUID(), analyticsId: job.client_photo_id || crypto.randomUUID(),
+        originalFile: file, file, normalizedFile: null, preview: URL.createObjectURL(file),
+        status: "complete", statusLabel: "recovered", referenceOnly: false, label: "",
+        cleanBaseBlob: cleaned, editInstructions: [], resultUrl: "", error: ""
+      };
+      state.photos.push(photo);
+    }
+    if (photo.resultUrl) URL.revokeObjectURL(photo.resultUrl);
+    photo.cleanBaseBlob = cleaned;
+    photo.resultBlob = blob;
+    photo.resultUrl = URL.createObjectURL(blob);
+    photo.status = "complete";
+    photo.statusLabel = "ready";
+  } else if (job.operation === "listing_copy") {
+    const data = await response.json();
+    const listing = cleanListingText(data.listing);
+    if (!listing) throw new Error("Your saved listing could not be read.");
+    elements.listingOutput.textContent = listing;
+    elements.listingOutput.classList.remove("hidden");
+    elements.outputPlaceholder.classList.add("hidden");
+  } else {
+    const data = await response.json();
+    if (!data.image) throw new Error("Your saved creative image could not be read.");
+    const blob = base64ToBlob(data.image, data.mimeType || "image/jpeg");
+    const type = data.format || "on_body";
+    const sequence = state.creativeResults.length + 1;
+    state.creativeResults.unshift({
+      id: job.id, sequence, type,
+      label: (creativeLabels[type] || creativeLabels.on_body).replace(/^GENERATE /, "").toLowerCase(),
+      blob, url: URL.createObjectURL(blob),
+      filename: `dressup-sesh-${type.replaceAll("_", "-")}-${String(sequence).padStart(2, "0")}.jpg`
+    });
+    renderCreativeResults();
+  }
+  appliedGenerationJobs.add(job.id);
+  render();
+  void refreshAccess();
+}
+
+async function recoverRecentGenerations() {
+  if (!state.session || recoveringGenerationJobs) return;
+  recoveringGenerationJobs = true;
+  try {
+    const response = await fetch(generationEndpoint("?recent=1"), {
+      headers: generationHeaders(), cache: "no-store"
+    });
+    if (!response.ok) return;
+    const jobs = (await response.json()).jobs || [];
+    const userId = state.session.user.id;
+    let savedItem = "";
+    try { savedItem = localStorage.getItem(activeItemKey(userId)) || ""; } catch { /* optional */ }
+    if (!savedItem && jobs.length && !state.photos.length) {
+      state.clientItemId = jobs[0].client_item_id;
+      keepActiveItem();
+    }
+    const current = jobs.filter((job) => job.client_item_id === state.clientItemId).reverse();
+    for (const job of current) {
+      if (activeGenerationJobs.has(job.id) || appliedGenerationJobs.has(job.id)) continue;
+      if (job.status === "failed") {
+        if (job.error_code === "STATUS_UNKNOWN") showRecoveredProblem(job, job.error);
+        continue;
+      }
+      if (job.status === "succeeded") {
+        await restoreGeneration(job);
+      } else {
+        void waitForGeneration(job.id).then(restoreGeneration).catch((error) => {
+          showRecoveredProblem(job, error.message || "Please check this generation before retrying.");
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Studio result recovery failed", error);
+  } finally {
+    recoveringGenerationJobs = false;
+  }
+}
+
 async function verifyStudioSession(session) {
   if (!configured || !session) return null;
   try {
@@ -316,6 +550,12 @@ async function maybeRouteToBetaSurvey() {
 
 async function refreshSession(session) {
   document.body.classList.add("auth-pending");
+  if (session?.user?.id && !state.photos.length) {
+    try {
+      const savedItem = localStorage.getItem(activeItemKey(session.user.id));
+      if (savedItem && /^[0-9a-f-]{36}$/i.test(savedItem)) state.clientItemId = savedItem;
+    } catch { /* optional */ }
+  }
   const access = await verifyStudioSession(session);
   state.session = access ? session : null;
   state.access = access;
@@ -339,8 +579,18 @@ async function refreshSession(session) {
   if (state.session) {
     void continuePendingCheckout();
     void maybeRouteToBetaSurvey();
+    if (recoveredForUser !== state.session.user.id) {
+      recoveredForUser = state.session.user.id;
+      void recoverRecentGenerations();
+    }
+  } else {
+    recoveredForUser = "";
   }
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.session && !activeGenerationJobs.size) void recoverRecentGenerations();
+});
 
 async function invokeStudioFunction(name, body = {}) {
   if (!state.session) throw new Error("SIGN_IN_REQUIRED");
@@ -652,6 +902,7 @@ function clearAllPhotos() {
   });
   state.photos = [];
   state.clientItemId = crypto.randomUUID();
+  keepActiveItem();
   state.processedCount = 0;
   removeCreativeReference();
   resetCreativeOutput();
@@ -688,13 +939,13 @@ function render() {
       : pendingCleanupPhotos.length
         ? `REMOVE BACKGROUNDS · ${pendingCleanupPhotos.length}`
         : "ALL PHOTOS READY";
-  elements.emptyListing.classList.toggle("hidden", hasPhotos);
-  elements.listingLayout.classList.toggle("hidden", !hasPhotos);
+  elements.emptyListing.classList.toggle("hidden", hasPhotos || Boolean(elements.listingOutput.textContent.trim()));
+  elements.listingLayout.classList.toggle("hidden", !hasPhotos && !elements.listingOutput.textContent.trim());
   elements.listingButton.disabled = !configured || !state.session || !usablePhotos.length || isPreparing;
   elements.listingNote.classList.toggle("hidden", configured && Boolean(state.session));
   elements.listingNote.textContent = configured ? "Sign in to activate listing generation." : "Listing generation is temporarily unavailable.";
-  elements.emptyCreative.classList.toggle("hidden", hasPhotos);
-  elements.creativeLayout.classList.toggle("hidden", !hasPhotos);
+  elements.emptyCreative.classList.toggle("hidden", hasPhotos || state.creativeResults.length > 0);
+  elements.creativeLayout.classList.toggle("hidden", !hasPhotos && !state.creativeResults.length);
   elements.creativeGenerate.disabled = !configured || !state.session || !productPhotos.length || isPreparing || state.creativeGenerating;
   elements.creativeGenerate.textContent = state.creativeGenerating ? "GENERATING…" : creativeLabels[state.creativeType];
   elements.creativeSaveAll.disabled = !state.creativeResults.length || state.creativeGenerating;
@@ -1104,20 +1355,7 @@ async function removeBackgroundInCloud(photo) {
   form.append("client_item_id", state.clientItemId);
   form.append("client_photo_id", photo.analyticsId);
 
-  const response = await fetch(`${config.supabaseUrl}/functions/v1/remove-product-background`, {
-    method: "POST",
-    headers: {
-      apikey: config.supabasePublishableKey,
-      Authorization: `Bearer ${state.session.access_token}`
-    },
-    body: form
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    handleApiProblem(payload);
-    throw new Error(payload.error || "The cloud cleanup could not be completed.");
-  }
+  const response = await runGeneration(form, "background_remove", photo.analyticsId);
   return applySelectedPhotoBackground(await response.blob());
 }
 
@@ -1585,16 +1823,7 @@ async function createListing() {
       body.append("images", compactImage, `${role}-${index + 1}.jpg`);
     }
     elements.listingButton.textContent = "WRITING LISTING…";
-    const response = await fetch(`${config.supabaseUrl}/functions/v1/create-listing`, {
-        method: "POST",
-        headers: { apikey: config.supabasePublishableKey, Authorization: `Bearer ${state.session.access_token}` },
-      body
-    });
-    if (!response.ok) {
-      const problem = await response.json().catch(() => ({}));
-      handleApiProblem(problem);
-      throw new Error(problem.error || "The listing could not be generated. Please try again.");
-    }
+    const response = await runGeneration(body, "listing_copy");
     const data = await response.json();
     applyAccess(data.access);
     const listing = cleanListingText(data.listing);
@@ -1652,16 +1881,7 @@ async function generateCreativeImage() {
     }
 
     elements.creativeGenerate.textContent = "GENERATING…";
-    const response = await fetch(`${config.supabaseUrl}/functions/v1/generate-product-photo`, {
-      method: "POST",
-      headers: { apikey: config.supabasePublishableKey, Authorization: `Bearer ${state.session.access_token}` },
-      body
-    });
-    if (!response.ok) {
-      const problem = await response.json().catch(() => ({}));
-      handleApiProblem(problem);
-      throw new Error(problem.error || "The creative image could not be generated. Please try again.");
-    }
+    const response = await runGeneration(body, "creative_image");
 
     const data = await response.json();
     applyAccess(data.access);
