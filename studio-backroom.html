@@ -89,6 +89,9 @@
 </div>
 </section>
 <section aria-labelledby="beta-tab" hidden="" id="beta-pane" role="tabpanel">
+<section class="panel"><p class="eyebrow">OUTREACH RETURN</p><h2>Results by push</h2><p class="caption">Create a code for each message, post, or event. Use its unique link. Visitors are distinct browsers; revenue is recorded net collected after beta signup, excluding labeled test accounts. Return divides that revenue by the spend you enter. It excludes Stripe fees and generation costs.</p>
+<form class="filter-bar" id="campaign-form"><label>Code<input id="campaign-code" maxlength="80" required="" pattern="[a-z0-9][a-z0-9_-]*" placeholder="posh-sept29"/></label><label>Label<input id="campaign-label" maxlength="120" required="" placeholder="Posh followers, first message"/></label><label>Channel<input id="campaign-channel" maxlength="60" required="" placeholder="Poshmark"/></label><label>Spend ($)<input id="campaign-spend" min="0" max="100000" step="0.01" type="number" value="0" required=""/></label><button type="submit">Save push</button><button id="campaign-refresh" type="button">Refresh</button></form>
+<p id="campaign-status" role="status" aria-live="polite"></p><div class="table-scroll"><table><caption class="sr-only">Campaign visits, trial milestones, and recorded return</caption><thead><tr><th>Push / link</th><th>Visitors</th><th>Intake</th><th>Verified</th><th>First / third item</th><th>Paid users</th><th>Net collected</th><th>Spend</th><th>Return on spend</th></tr></thead><tbody id="campaign-rows"></tbody></table></div></section>
 <form class="filter-bar" id="beta-filters">
 <label>Platform<select id="beta-platform"><option value="all">All platforms</option><option value="poshmark">Poshmark</option><option value="depop">Depop</option><option value="ebay">eBay</option><option value="etsy">Etsy</option><option value="mercari">Mercari</option><option value="grailed">Grailed</option><option value="vestiaire_collective">Vestiaire Collective</option><option value="whatnot">Whatnot</option><option value="shopify">Shopify</option><option value="other">Other</option><option value="in_person">In person</option></select></label>
 <label>Resale type<select id="beta-relationship"><option value="all">All resale types</option><option value="casual_seller">Casual seller</option><option value="reseller">Reseller</option><option value="vintage_boutique">Vintage / boutique</option><option value="consignment">Consignment</option><option value="creator">Creator</option><option value="other">Other</option><option value="closet_to_list">Closet to list</option><option value="secondhand_occasional">Buys secondhand / sometimes sells</option><option value="exploring_selling">Exploring selling</option></select></label>
@@ -112,6 +115,6 @@
 <script src="config.js"></script><script src="turnstile.js?v=2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
 <script src="shared-supabase-client.js?v=2"></script>
-<script src="studio-backroom-auth.js?v=1"></script><script src="studio-backroom.js?v=3"></script>
+<script src="studio-backroom-auth.js?v=1"></script><script src="studio-backroom.js?v=3"></script><script src="studio-backroom-campaigns.js?v=20260929"></script>
 <script src="studio-backroom-waitlist.js?v=approved-20260923"></script></body>
 </html>
