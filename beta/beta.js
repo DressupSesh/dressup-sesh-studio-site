@@ -7,7 +7,7 @@
   const $$ = selector => [...document.querySelectorAll(selector)];
   const params = new URLSearchParams(window.location.search);
   const source = (() => {
-    const value = params.get('ref') || params.get('source') || '';
+    const value = window.DS_CAMPAIGN_SOURCE || params.get('ref') || params.get('source') || '';
     return /^[A-Za-z0-9_-]{1,80}$/.test(value) ? value : '';
   })();
   const handoff = (() => {
@@ -38,6 +38,7 @@
     $(`[data-step="${step}"] h2`).focus({ preventScroll: true });
   }
   function openForm() {
+    window.DS_TRACK_CAMPAIGN?.('intake_start');
     $('#beta-intro').hidden = true; $('#beta-success').hidden = true; $('#beta-card').hidden = false;
     showStep(1); $('#display-name').focus({ preventScroll: true });
   }
@@ -102,7 +103,7 @@
 
   $('#start-beta').addEventListener('click', openForm);
   $('#back-step').addEventListener('click', () => showStep(1));
-  $('#next-step').addEventListener('click', () => { if (validateStepOne()) showStep(2); });
+  $('#next-step').addEventListener('click', () => { if (validateStepOne()) { showStep(2); window.DS_TRACK_CAMPAIGN?.('step_two'); } });
   $('#relationship-choices').addEventListener('click', event => {
     const button = event.target.closest('button[data-value]'); if (!button) return;
     state.relationship = button.dataset.value || '';
@@ -128,6 +129,7 @@
     const value = intake();
     try {
       await startSecureEmail(value);
+      window.DS_TRACK_CAMPAIGN?.('email_requested');
       showMessage('Check your email.', `We sent a secure sign-in link to ${value.email}. Open the newest email on any device to enter your three-item Studio trial.`);
     } catch (error) {
       state.submitting = false; button.disabled = false;
