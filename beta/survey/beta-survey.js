@@ -9,6 +9,7 @@
   let session = null;
   let valuableFeature = '';
   let busy = false;
+  const referralSources = new Set(['poshmark', 'instagram', 'tiktok', 'pinterest', 'youtube', 'facebook', 'linkedin', 'search', 'friend', 'event', 'other']);
 
   function setError(message = '') { $('#survey-error').textContent = message; }
   function show(id) { ['loading-card', 'survey-card', 'decision-card'].forEach(card => { $(`#${card}`).hidden = card !== id; }); }
@@ -53,13 +54,18 @@
       likely_monthly_volume: $('#likely-volume').value,
       price_fit: $('#price-fit').value,
       definite_yes: $('#definite-yes').value.trim(),
+      how_heard: $('#how-heard').value || null,
+      how_heard_detail: $('#how-heard-detail').value.trim() || null,
     };
     if (!payload.output_readiness || !payload.most_valuable_feature || !payload.likely_monthly_volume || !payload.price_fit) {
       setError('Choose an answer for each required question.'); return;
     }
-    busy = true; const button = $('#submit-survey'); button.disabled = true; button.textContent = 'Savingâ¦';
+    if ((payload.how_heard && !referralSources.has(payload.how_heard)) || (payload.how_heard_detail || '').length > 120 || (!payload.how_heard && payload.how_heard_detail)) {
+      setError('Choose where you heard about Studio if you add a detail. Keep the optional detail to 120 characters.'); return;
+    }
+    busy = true; const button = $('#submit-survey'); button.disabled = true; button.textContent = 'Saving…';
     try { await invoke('submit', payload); show('decision-card'); }
-    catch (error) { setError(error.message); button.disabled = false; button.innerHTML = 'Save my feedback <span>â</span>'; }
+    catch (error) { setError(error.message); button.disabled = false; button.innerHTML = 'Save my feedback <span>→</span>'; }
     finally { busy = false; }
   });
   $('#skip-survey').addEventListener('click', async () => {
@@ -68,9 +74,9 @@
     catch (error) { setError(error.message); $('#skip-survey').disabled = false; busy = false; }
   });
   $('#continue-beta').addEventListener('click', async () => {
-    if (busy) return; busy = true; $('#continue-beta').disabled = true; $('#continue-beta').textContent = 'Opening checkoutâ¦';
+    if (busy) return; busy = true; $('#continue-beta').disabled = true; $('#continue-beta').textContent = 'Opening checkout…';
     try { await invoke('continue'); window.location.assign('../../?intent=subscribe'); }
-    catch (error) { window.alert(error.message); $('#continue-beta').disabled = false; $('#continue-beta').innerHTML = 'Continue to secure checkout <span>â</span>'; busy = false; }
+    catch (error) { window.alert(error.message); $('#continue-beta').disabled = false; $('#continue-beta').innerHTML = 'Continue to secure checkout <span>→</span>'; busy = false; }
   });
   $('#no-thanks').addEventListener('click', async () => {
     if (busy) return; busy = true; $('#no-thanks').disabled = true;

@@ -5,6 +5,9 @@
   const groups = { customer: 'Customers', test: 'Test accounts', unclassified: 'Unclassified accounts', owner: 'Owner', all: 'All accounts (includes testing)' };
   let page = 0, request = 0, snapshot = null;
   let betaRequest = 0, betaSnapshot = null, betaLoaded = false;
+  const classificationChanges = new Map();
+  let classificationSaving = false, classificationEpoch = 0;
+  let classificationMessage = '', classificationError = false;
   const number = value => Number(value || 0).toLocaleString('en-US');
   const dollars = value => (Number(value) / 1000000).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const money = value => (Number(value || 0) / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -22,6 +25,47 @@
   function notify(message, error = false) {
     $('dashboard-status').textContent = message;
     $('dashboard-status').classList.toggle('error', error);
+  }
+  function updateClassificationControls(message, error = false) {
+    if (message !== undefined) { classificationMessage = message; classificationError = error; }
+    const count = classificationChanges.size, save = $('classification-save-all');
+    save.disabled = !window.DRESSUP_STUDIO_ADMIN || classificationSaving || !count;
+    save.textContent = classificationSaving ? 'Saving classifications…' : 'Save all classifications';
+    $('classification-status').textContent = classificationSaving
+      ? `Saving ${number(count)} classifications…`
+      : `${count ? `${number(count)} unsaved ${count === 1 ? 'classification' : 'classifications'}.` : 'No unsaved classifications.'}${classificationMessage ? ` ${classificationMessage}` : ''}`;
+    $('classification-status').classList.toggle('error', classificationError);
+  }
+  function clearClassifications() {
+    classificationEpoch++; classificationChanges.clear(); classificationSaving = false;
+    updateClassificationControls('');
+  }
+  async function saveClassifications() {
+    if (!window.DRESSUP_STUDIO_ADMIN || !window.DRESSUP_SUPABASE || classificationSaving || !classificationChanges.size) return;
+    const epoch = classificationEpoch;
+    const changes = Array.from(classificationChanges.values(), change => ({ ...change }));
+    classificationSaving = true; updateClassificationControls('');
+    for (const select of $('account-rows').querySelectorAll('select')) select.disabled = true;
+    try {
+      const { error } = await window.DRESSUP_SUPABASE.rpc('studio_admin_classify_batch', { p_changes: changes });
+      if (epoch !== classificationEpoch || !window.DRESSUP_STUDIO_ADMIN) return;
+      if (error) throw error;
+      classificationChanges.clear();
+      updateClassificationControls(`${number(changes.length)} ${changes.length === 1 ? 'classification' : 'classifications'} saved.`);
+      await load({ preserveScroll: true });
+    } catch (error) {
+      if (epoch !== classificationEpoch || !window.DRESSUP_STUDIO_ADMIN) return;
+      if (error?.code === '42501') window.dispatchEvent(new Event('studio:admin-denied'));
+      else updateClassificationControls(error?.code === '40001'
+        ? 'An account was classified elsewhere. Your edits are still staged; refresh, review the saved groups, and set those choices again before retrying.'
+        : 'Classifications could not be saved. Your edits are still staged; try again. Billing and credits were not changed.', true);
+    } finally {
+      if (epoch === classificationEpoch) {
+        classificationSaving = false;
+        for (const select of $('account-rows').querySelectorAll('select')) select.disabled = !window.DRESSUP_STUDIO_ADMIN;
+        updateClassificationControls();
+      }
+    }
   }
   function clear() {
     request++; snapshot = null;
@@ -97,25 +141,15 @@
       else {
         const select = node('select'); select.setAttribute('aria-label', `Analytics group for ${a.email}`);
         for (const key of ['unclassified','customer','test']) { const option = node('option', key[0].toUpperCase()+key.slice(1)); option.value = key; select.append(option); }
-        select.value = a.audience;
-        const save = node('button', 'Save'); save.type = 'button'; save.setAttribute('aria-label', `Save analytics group for ${a.email}`);
-        save.addEventListener('click', async () => {
-          if (select.value === a.audience) return;
-          if (!window.confirm(`Classify ${a.email} as ${select.value}? This only changes analytics grouping.`)) return;
-          const ticket = request;
-          save.disabled = true;
-          try {
-            const { error } = await window.DRESSUP_SUPABASE.rpc('studio_admin_classify', { p_user_id: a.id, p_audience: select.value });
-            if (ticket !== request || !window.DRESSUP_STUDIO_ADMIN) return;
-            if (error) throw error;
-            await load();
-          } catch (error) {
-            if (ticket !== request) return;
-            if (error?.code === '42501') window.dispatchEvent(new Event('studio:admin-denied'));
-            else notify('Classification could not be saved. Your billing and credits were not changed.', true);
-          } finally { save.disabled = false; }
+        select.value = classificationChanges.get(a.id)?.audience ?? a.audience;
+        select.disabled = classificationSaving;
+        select.addEventListener('change', () => {
+          if (classificationSaving || !window.DRESSUP_STUDIO_ADMIN) return;
+          if (select.value === a.audience) classificationChanges.delete(a.id);
+          else classificationChanges.set(a.id, { user_id: a.id, expected_audience: a.audience, audience: select.value });
+          updateClassificationControls('');
         });
-        action.append(select, save);
+        action.append(select);
       }
       row.append(action); body.append(row);
     }
@@ -141,24 +175,28 @@
     if (!(data.recent_billing || []).length) billing.append(node('li', 'No live billing records yet.'));
     $('dashboard-data').hidden = false;
     $('export').disabled = false;
+    updateClassificationControls();
   }
-  async function load() {
+  async function load({ preserveScroll = false } = {}) {
     if (!window.DRESSUP_STUDIO_ADMIN || !window.DRESSUP_SUPABASE) return;
     const ticket = ++request;
-    snapshot = null; $('dashboard-data').hidden = true; $('export').disabled = true;
+    const scroll = preserveScroll ? { left: window.scrollX, top: window.scrollY } : null;
+    snapshot = null; if (!preserveScroll) $('dashboard-data').hidden = true; $('export').disabled = true;
     notify('Loading Studio analytics…');
     try {
       const { data, error } = await window.DRESSUP_SUPABASE.rpc('studio_admin_dashboard', { p_days: Number($('days').value), p_audience: $('audience').value, p_search: $('account-search').value.trim(), p_page: page });
       if (ticket !== request || !window.DRESSUP_STUDIO_ADMIN) return;
       if (error) throw error;
       if (!data || !data.summary || !data.financial || !Array.isArray(data.accounts)) throw new Error('Invalid analytics response');
-      if (page > 0 && data.account_total <= page * data.page_size) { page = 0; await load(); return; }
+      if (page > 0 && data.account_total <= page * data.page_size) { page = 0; await load({ preserveScroll }); return; }
       snapshot = data; render(data); notify('Studio records loaded. Revenue and refunds are live-mode only; usage follows the selected account group.');
     } catch (error) {
       if (ticket !== request) return;
       clear();
       if (error?.code === '42501') window.dispatchEvent(new Event('studio:admin-denied'));
       else notify('Analytics could not load. If this is a new deployment, confirm the Studio Back Room database migration is installed, then refresh.', true);
+    } finally {
+      if (scroll && ticket === request && window.DRESSUP_STUDIO_ADMIN) window.scrollTo({ ...scroll, behavior: 'instant' });
     }
   }
   const betaNames = {
@@ -177,6 +215,7 @@
     $('beta-export').disabled = true;
     $('beta-tester-rows').replaceChildren();
     $('beta-funnel').replaceChildren();
+    $('beta-referral-rows').replaceChildren();
   }
   function addDetailFact(list, label, value) {
     const wrap = node('div'), term = node('dt', label), definition = node('dd', value);
@@ -190,7 +229,10 @@
     addDetailFact(facts, 'Resale relationship', pretty(tester.resale_relationship));
     addDetailFact(facts, 'Platforms', Array.isArray(tester.platforms) ? tester.platforms.map(pretty).join(', ') : '—');
     addDetailFact(facts, 'Ideal monthly listings', pretty(tester.ideal_monthly_listing_volume));
-    addDetailFact(facts, 'Source', tester.source_code || 'Direct / not captured');
+    addDetailFact(facts, 'Account group', pretty(tester.account_group));
+    addDetailFact(facts, 'Campaign source code', tester.source_code || 'Direct / not captured');
+    addDetailFact(facts, 'How they heard about us', pretty(tester.how_heard || 'not_reported'));
+    if (tester.how_heard_detail) addDetailFact(facts, 'Referral detail', tester.how_heard_detail);
     addDetailFact(facts, 'Signed up', date(tester.signup_date));
     addDetailFact(facts, 'Trial', `${pretty(tester.trial_stage)} · ${number(tester.trial_completed_items)} of 3 items`);
     addDetailFact(facts, 'Survey', pretty(tester.survey_state));
@@ -228,13 +270,16 @@
     }
   }
   function renderBeta(data) {
-    $('beta-caption').textContent = `${number(data.tester_total)} beta testers match these filters · Updated ${date(data.as_of)}.`;
+    $('beta-caption').textContent = `${groups[data.audience] || pretty(data.audience)} · ${number(data.tester_total)} beta testers match these filters · Updated ${date(data.as_of)}.`;
     $('beta-tester-count').textContent = `${number(data.tester_total)} testers`;
     const funnel = $('beta-funnel'); funnel.replaceChildren();
     for (const key of ['profile_completed', 'account_verified', 'trial_started', 'first_item', 'three_items', 'survey_submitted', 'paid_continuation']) {
       const card = node('div', undefined, 'beta-funnel-step');
       card.append(node('span', betaNames[key]), node('strong', number(data.funnel[key]))); funnel.append(card);
     }
+    const referrals = $('beta-referral-rows'); referrals.replaceChildren();
+    for (const source of data.referral_sources || []) { const row = node('tr'); row.append(node('td', source.source === 'not_reported' ? 'Not recorded yet' : pretty(source.source)), node('td', number(source.users))); referrals.append(row); }
+    if (!(data.referral_sources || []).length) emptyRow(referrals, 'No beta accounts in this group match these filters yet.', 2);
     const body = $('beta-tester-rows'); body.replaceChildren();
     for (const tester of data.testers) {
       const row = node('tr');
@@ -258,7 +303,8 @@
     betaSnapshot = null; $('beta-data').hidden = true; $('beta-export').disabled = true;
     betaNotify('Loading private beta records…');
     try {
-      const { data, error } = await window.DRESSUP_SUPABASE.rpc('studio_admin_beta_dashboard', {
+      const { data, error } = await window.DRESSUP_SUPABASE.rpc('studio_admin_beta_dashboard_v2', {
+        p_audience: $('beta-audience').value,
         p_platform: $('beta-platform').value, p_relationship: $('beta-relationship').value,
         p_volume: $('beta-volume').value, p_source: $('beta-source').value.trim(),
         p_stage: $('beta-stage').value, p_paid_choice: $('beta-paid-choice').value
@@ -286,13 +332,14 @@
   $('previous').addEventListener('click', () => { page = Math.max(0,page-1); void load(); });
   $('next').addEventListener('click', () => { page++; void load(); });
   $('show-unclassified').addEventListener('click', () => { $('audience').value = 'unclassified'; page = 0; $('account-search').value = ''; void load(); });
+  $('classification-save-all').addEventListener('click', saveClassifications);
   $('finance-tab').addEventListener('click', () => activateTab('finance'));
   $('beta-tab').addEventListener('click', () => activateTab('beta'));
   $('beta-filters').addEventListener('submit', event => { event.preventDefault(); void loadBeta(); });
   $('beta-export').addEventListener('click', () => {
     if (!betaSnapshot || !window.DRESSUP_STUDIO_ADMIN) return;
-    const rows = [['Beta testers · owner-only export'], ['As of', betaSnapshot.as_of], [], ['Profile completed', betaSnapshot.funnel.profile_completed], ['Account verified', betaSnapshot.funnel.account_verified], ['Trial started', betaSnapshot.funnel.trial_started], ['First item', betaSnapshot.funnel.first_item], ['Three items', betaSnapshot.funnel.three_items], ['Survey submitted', betaSnapshot.funnel.survey_submitted], ['Paid continuation', betaSnapshot.funnel.paid_continuation], [], ['Name', 'Email', 'Resale type', 'Platforms', 'Ideal listings', 'Source', 'Signup date', 'Trial items', 'Trial stage', 'Survey state', 'Output readiness', 'Most valuable feature', 'Friction', 'Likely volume', '$12.99 fit', 'Definite yes', 'Paid choice', 'Issue flag']];
-    for (const t of betaSnapshot.testers) { const s = t.survey_response || {}; rows.push([t.display_name, t.email, t.resale_relationship, Array.isArray(t.platforms) ? t.platforms.join('; ') : '', t.ideal_monthly_listing_volume, t.source_code, t.signup_date, t.trial_completed_items, t.trial_stage, t.survey_state, s.output_readiness, s.most_valuable_feature, s.friction, s.likely_monthly_volume, s.price_fit, s.definite_yes, t.paid_beta_decision, t.issue_flag ? 'yes' : 'no']); }
+    const rows = [['Beta testers · owner-only export'], ['As of', betaSnapshot.as_of], [], ['Profile completed', betaSnapshot.funnel.profile_completed], ['Account verified', betaSnapshot.funnel.account_verified], ['Trial started', betaSnapshot.funnel.trial_started], ['First item', betaSnapshot.funnel.first_item], ['Three items', betaSnapshot.funnel.three_items], ['Survey submitted', betaSnapshot.funnel.survey_submitted], ['Paid continuation', betaSnapshot.funnel.paid_continuation], [], ['Name', 'Email', 'Account group', 'Resale type', 'Platforms', 'Ideal listings', 'Campaign source', 'How heard', 'Referral detail', 'Signup date', 'Trial items', 'Trial stage', 'Survey state', 'Output readiness', 'Most valuable feature', 'Friction', 'Likely volume', '$12.99 fit', 'Definite yes', 'Paid choice', 'Issue flag']];
+    for (const t of betaSnapshot.testers) { const s = t.survey_response || {}; rows.push([t.display_name, t.email, t.account_group, t.resale_relationship, Array.isArray(t.platforms) ? t.platforms.join('; ') : '', t.ideal_monthly_listing_volume, t.source_code, t.how_heard, t.how_heard_detail, t.signup_date, t.trial_completed_items, t.trial_stage, t.survey_state, s.output_readiness, s.most_valuable_feature, s.friction, s.likely_monthly_volume, s.price_fit, s.definite_yes, t.paid_beta_decision, t.issue_flag ? 'yes' : 'no']); }
     const cell = value => { let text = String(value ?? ''); if (/^[=+@\-\t\r]/.test(text)) text = "'" + text; return `"${text.replaceAll('"','""')}"`; };
     const blob = new Blob(['\ufeff' + rows.map(row => row.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob), link = node('a'); link.href = url; link.download = `studio-beta-testers-${betaSnapshot.as_of.slice(0,10)}.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -305,7 +352,9 @@
     const url = URL.createObjectURL(blob), link = node('a'); link.href = url; link.download = `studio-summary-${snapshot.audience}-${snapshot.as_of.slice(0,10)}.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
   window.addEventListener('studio:admin-ready', () => { void load(); });
-  window.addEventListener('studio:admin-locked', () => { clear(); clearBeta(); });
-  window.addEventListener('pagehide', () => { clear(); clearBeta(); });
+  window.addEventListener('studio:finance-updated', () => { void load({ preserveScroll: true }); });
+  window.addEventListener('studio:admin-locked', () => { clearClassifications(); clear(); clearBeta(); });
+  window.addEventListener('pagehide', () => { clearClassifications(); clear(); clearBeta(); });
+  updateClassificationControls();
   if (window.DRESSUP_STUDIO_ADMIN) void load();
 })();

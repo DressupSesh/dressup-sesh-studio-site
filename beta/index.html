@@ -91,6 +91,10 @@
 <button aria-pressed="false" data-value="1_5" type="button">1–5</button><button aria-pressed="false" data-value="6_15" type="button">6–15</button>
 <button aria-pressed="false" data-value="16_30" type="button">16–30</button><button aria-pressed="false" data-value="31_plus" type="button">31+</button>
 </div><input id="monthly-volume" type="hidden"/>
+<label class="field" for="how-heard">Where did you hear about Dressup Sesh Studio?
+<select id="how-heard" name="how-heard" required=""><option value="">Choose one</option><option value="poshmark">Poshmark</option><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="pinterest">Pinterest</option><option value="youtube">YouTube</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="search">Search engine</option><option value="friend">A friend</option><option value="event">An event</option><option value="other">Other</option></select>
+</label>
+<label class="field" for="how-heard-detail">Who or where specifically? <span class="intake-note">Optional</span><input id="how-heard-detail" name="how-heard-detail" maxlength="120" placeholder="An account, event, or other detail" type="text"/></label>
 <label class="field" for="beta-email">What is the best email for your account?<input autocomplete="email" id="beta-email" maxlength="254" name="email" placeholder="you@email.com" required="" type="email"/></label>
 <div aria-label="Security verification" class="turnstile" hidden="" id="beta-turnstile"></div><button class="solid-button" id="send-beta-email" type="submit">CREATE MY TRIAL ACCOUNT <span aria-hidden="true">→</span></button>
 <p class="intake-note">You’ll verify your email, then enter your three-item Studio trial.</p>
@@ -101,5 +105,5 @@
 <section class="beta-success" hidden="" id="beta-success"><p class="kicker">YOUR STUDIO TRIAL</p><h2 id="success-title">Check your email.</h2><p id="success-copy"></p><a class="quiet-link" href="/?intent=signin">Already have an account? Sign in instead</a></section>
 </main>
 
-<script src="studio-settings.js?v=1"></script><script src="../campaign-analytics.js?v=20260929"></script><script src="../turnstile.js?v=2"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script><script src="beta.js?v=campaign-20260929"></script></body>
+<script src="studio-settings.js?v=1"></script><script src="../campaign-analytics.js?v=20260929"></script><script src="../turnstile.js?v=2"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script><script src="beta.js?v=referrals-20261006"></script></body>
 </html>
