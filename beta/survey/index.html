@@ -35,6 +35,10 @@
           <select id="price-fit" required><option value="">Choose one</option><option value="good_fit">Yes, that feels right</option><option value="maybe">Maybe—I need a little more time</option><option value="not_a_fit">No, not for me</option></select>
         </label>
         <label class="field">What would make it a definite yes?<textarea id="definite-yes" maxlength="1200" placeholder="Optional."></textarea></label>
+        <label class="field" for="how-heard">Where did you hear about Dressup Sesh Studio? <span>Optional, if you haven’t already shared.</span>
+          <select id="how-heard"><option value="">Choose one, or leave blank</option><option value="poshmark">Poshmark</option><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="pinterest">Pinterest</option><option value="youtube">YouTube</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="search">Search engine</option><option value="friend">A friend</option><option value="event">An event</option><option value="other">Other</option></select>
+        </label>
+        <label class="field" for="how-heard-detail">Who or where specifically? <input id="how-heard-detail" maxlength="120" placeholder="Optional: an account, event, or other detail" type="text"></label>
         <p class="form-error" id="survey-error" role="alert"></p>
         <button class="primary" id="submit-survey" type="submit">Save my feedback <span>→</span></button>
       </form>
@@ -50,6 +54,6 @@
   </main>
   <script src="../../config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-  <script src="beta-survey.js?v=1"></script>
+  <script src="beta-survey.js?v=referrals-20261006"></script>
 </body>
 </html>

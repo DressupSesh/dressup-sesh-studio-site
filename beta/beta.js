@@ -15,6 +15,7 @@
     return /^[0-9a-f-]{36}$/i.test(value) ? value : '';
   })();
   const state = { step: 1, relationship: '', platforms: new Set(), submitting: false, handoffDone: false };
+  const referralSources = new Set(['poshmark', 'instagram', 'tiktok', 'pinterest', 'youtube', 'facebook', 'linkedin', 'search', 'friend', 'event', 'other']);
   const captcha = window.DRESSUP_TURNSTILE?.create('beta-turnstile', {
     action: 'studio_beta_signup', onError: message => { $('#step-two-error').textContent = message; },
   }) || { enabled: false, getToken: () => undefined, reset: () => {} };
@@ -24,6 +25,7 @@
       display_name: $('#display-name').value.trim(), resale_relationship: state.relationship,
       platforms: [...state.platforms], ideal_monthly_listing_volume: $('#monthly-volume').value,
       email: $('#beta-email').value.trim().toLowerCase(), source_code: source || null,
+      how_heard: $('#how-heard').value || null, how_heard_detail: $('#how-heard-detail').value.trim() || null,
     };
   }
   function showStep(step) {
@@ -56,6 +58,9 @@
     const value = intake(); const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email);
     if (!value.ideal_monthly_listing_volume || !validEmail) {
       $('#step-two-error').textContent = 'Choose your monthly volume and enter a valid email.'; return false;
+    }
+    if (!referralSources.has(value.how_heard) || (value.how_heard_detail || '').length > 120) {
+      $('#step-two-error').textContent = 'Choose where you heard about Studio. Keep the optional detail to 120 characters.'; return false;
     }
     if (captcha.enabled && !captcha.getToken()) {
       $('#step-two-error').textContent = 'Complete the security check, then continue.'; return false;
