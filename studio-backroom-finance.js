@@ -18,6 +18,30 @@
     if (result.error) { if (result.error.code === '42501') window.dispatchEvent(new Event('studio:admin-denied')); throw result.error; }
     return result.data;
   }
+  async function syncFailure(result) {
+    let body = result.data || {};
+    const response = result.error?.context;
+    if (response && typeof response.json === 'function') {
+      try { body = await (typeof response.clone === 'function' ? response.clone() : response).json(); } catch { /* No JSON error body. */ }
+    }
+    const code = body?.code;
+    const messages = {
+      UNAUTHORIZED: 'Your owner session expired. Sign in again, then sync the same dates.',
+      FORBIDDEN: 'Verify your owner account with your authenticator, then sync again.',
+      LIVE_STRIPE_NOT_CONFIGURED: 'The server is not connected to live Stripe. This is a configuration issue, not your account’s Test label.',
+      LIVE_MODE_REQUIRED: 'The import expects live Stripe payments. Stripe test-mode payments are kept separate.',
+      FINANCE_SYNC_BUSY: 'Another Stripe import is running. Wait for it to finish, then refresh records.',
+      INVALID_DATE_RANGE: 'Choose valid start and through dates, up to one year apart.',
+      SYNC_TIME_LIMIT_NARROW_RANGE: 'The import reached its time limit. Retry a smaller date window.',
+      SYNC_PAGE_LIMIT_NARROW_RANGE: 'The import reached its record limit. Retry a smaller date window.',
+      FINANCE_RECORD_FAILED: 'Stripe was reached, but a record could not be saved. Existing records are preserved; this needs a backend check.',
+      SYNC_FAILED: 'The Stripe import failed. Existing records are preserved; this needs a connection or backend check.'
+    };
+    if (code && messages[code]) return messages[code];
+    if (response?.status === 401) return messages.UNAUTHORIZED;
+    if (response?.status === 403) return messages.FORBIDDEN;
+    return 'The browser could not reach the Stripe sync. Refresh the Back Room once and retry; changing dates will not fix a connection error.';
+  }
   function render(data) {
     const summary = $('finance-summary'); if (summary) {
       summary.replaceChildren();
@@ -47,12 +71,12 @@
     }
     const refunds = $('finance-refunds'); if (refunds) {
       refunds.replaceChildren();
-      if (!data.refunds?.length) refunds.append(element('p', 'No refunds recorded. Sync Stripe records to reconcile known refunds; zero recorded is not proof that none occurred.'));
+      if (!data.refunds?.length) refunds.append(element('p', 'No refunds imported yet, so there are no credit-removal buttons to show. Open Fees & sync and complete Sync Stripe records first.'));
       for (const refund of data.refunds || []) {
         const row = element('article');row.className = 'finance-refund';
         row.append(element('h3', `${money(refund.amount_cents, refund.currency)} · ${refund.transaction_kind.replaceAll('_', ' ')}`), element('p', `${new Date(refund.occurred_at).toLocaleString()} · ${refund.status} · ${refund.refund_id}`));
         row.append(element('p', refund.account_email || (refund.user_id ? `Account ${refund.user_id}` : 'Account not linked — verify the payment before reviewing credits.')));
-        if (refund.transaction_kind === 'subscription') row.append(element('p', 'A refund does not stop renewal. Review/cancel the subscription separately in Stripe; monthly access and trial bonuses are unchanged here.'));
+        if (refund.transaction_kind === 'subscription') row.append(element('p', 'Subscription refund: this is not a creative credit pack, so no pack-credit removal button appears. Cancel the subscription in Stripe when service should end. A refund alone does not stop renewal or revoke monthly access.'));
         if (refund.review_action) row.append(element('p', refund.review_action === 'keep' ? 'Reviewed: credits kept.' : `Reviewed: ${refund.credits_revoked} unused purchased credits removed.`));
         else if (refund.status === 'succeeded') {
           const keep = element('button', 'Keep credits');keep.type = 'button'; keep.addEventListener('click', () => void review(refund, 'keep', 0)); row.append(keep);
@@ -60,7 +84,7 @@
           if (eligible > 0) {
             const button = element('button', `Remove ${eligible} unused pack credits`);button.type = 'button';button.addEventListener('click', () => void review(refund, 'revoke', eligible));row.append(button);
             row.append(element('p', 'Only the bounded unused purchase allowance is eligible. Carried trial bonuses and unrelated purchases are preserved.'));
-          } else if (refund.transaction_kind === 'creative_pack') row.append(element('p', 'No safely linked unused pack credits are eligible. Review the purchase and usage before changing credits.'));
+          } else if (refund.transaction_kind === 'creative_pack') row.append(element('p', 'No safely linked unused pack credits are eligible. Credits may have been used or the original grant may not be linked; review the purchase and usage before changing balances.'));
         }
         refunds.append(row);
       }
@@ -81,7 +105,7 @@
     try {
       const result = await client().functions.invoke('studio-sync-stripe', { body: { from, to } });
       if (!current(ticket, operation)) return;
-      if (result.error || result.data?.status !== 'completed') throw new Error(result.data?.error || 'Import incomplete. Retry the same dates; narrower dates may help.');
+      if (result.error || result.data?.status !== 'completed') throw new Error(await syncFailure(result));
       const data = await rpc('studio_admin_finance');if (!current(ticket, operation)) return;render(data);
       status(`Stripe history imported: ${result.data.counts.refunds} refunds and ${result.data.counts.balances} balance records checked. Credits unchanged.`);
       window.dispatchEvent(new Event('studio:finance-updated'));
