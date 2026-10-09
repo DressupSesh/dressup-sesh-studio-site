@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" sizes="64x64" href="/assets/studio-favicon.png?v=1"/>
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/studio-apple-touch-icon.png?v=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Dressup Sesh Studio beta feedback.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co; upgrade-insecure-requests">
+  <title>Your Dressup Sesh Beta</title>
+  <link rel="stylesheet" href="beta.css?v=1">
+  <link rel="stylesheet" href="beta-survey.css?v=1">
+  <link rel="stylesheet" href="/beta-flow-frame.css?v=approved-20260923">
+<link href="/public-basics.css?v=20261009" rel="stylesheet"/></head>
+<body>
+  <main class="beta-shell survey-shell">
+    <header class="beta-header"><a class="wordmark" href="../../"><img class="studio-logo" src="/assets/dressup-sesh-final-studio-logo.png" width="1708" height="455" alt="Dressup Sesh Studio"></a><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav></header>
+    <section class="survey-card" id="loading-card"><p class="eyebrow">Private beta</p><h1>Loading your next step…</h1></section>
+    <section class="survey-card" id="survey-card" hidden>
+      <p class="eyebrow">You finished your three free items</p>
+      <h1>How did it feel?</h1>
+      <p class="lede">A few honest answers help shape what we build next. You can skip this and come back once.</p>
+      <form id="survey-form" novalidate>
+        <label class="field">Were the results ready to list?
+          <select id="output-readiness" required><option value="">Choose one</option><option value="ready_now">Yes, ready to list</option><option value="small_edits">Mostly—just small edits</option><option value="not_ready">Not ready yet</option></select>
+        </label>
+        <p class="field-label">What was most valuable?</p>
+        <div class="choice-grid survey-choices" id="value-choices"><button type="button" data-value="photo_cleanup">Photo cleanup</button><button type="button" data-value="listing_copy">Listing copy</button><button type="button" data-value="creative_images">Creative images</button><button type="button" data-value="whole_workflow">The whole workflow</button><button type="button" data-value="other">Something else</button></div>
+        <label class="field">What felt difficult or got in your way?<textarea id="friction" maxlength="1200" placeholder="Optional, but specific notes are especially useful."></textarea></label>
+        <label class="field">How many listings do you realistically want to make each month?
+          <select id="likely-volume" required><option value="">Choose one</option><option value="1_5">1–5 items</option><option value="6_20">6–20 items</option><option value="21_50">21–50 items</option><option value="51_100">51–100 items</option><option value="101_plus">101+ items</option></select>
+        </label>
+        <label class="field">Does $12.99/month for 20 items+ feel right?
+          <select id="price-fit" required><option value="">Choose one</option><option value="good_fit">Yes, that feels right</option><option value="maybe">Maybe—I need a little more time</option><option value="not_a_fit">No, not for me</option></select>
+        </label>
+        <label class="field">What would make it a definite yes?<textarea id="definite-yes" maxlength="1200" placeholder="Optional."></textarea></label>
+        <label class="field" for="how-heard">Where did you hear about Dressup Sesh Studio? <span>Optional, if you haven’t already shared.</span>
+          <select id="how-heard"><option value="">Choose one, or leave blank</option><option value="poshmark">Poshmark</option><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="pinterest">Pinterest</option><option value="youtube">YouTube</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="search">Search engine</option><option value="friend">A friend</option><option value="event">An event</option><option value="other">Other</option></select>
+        </label>
+        <label class="field" for="how-heard-detail">Who or where specifically? <input id="how-heard-detail" maxlength="120" placeholder="Optional: an account, event, or other detail" type="text"></label>
+        <p class="form-error" id="survey-error" role="alert"></p>
+        <button class="primary" id="submit-survey" type="submit">Save my feedback <span>→</span></button>
+      </form>
+      <button class="skip-button" id="skip-survey" type="button">Skip for now</button>
+    </section>
+    <section class="survey-card decision-card" id="decision-card" hidden>
+      <p class="eyebrow">Thank you</p>
+      <h1>Keep listing when you’re ready.</h1>
+      <p class="lede">Continue at $12.99/month for 20 items+. No automatic charge: choosing continue opens checkout, and you are charged only if you complete it.</p>
+      <button class="primary" id="continue-beta" type="button">Continue to secure checkout <span>→</span></button>
+      <button class="skip-button" id="no-thanks" type="button">No thanks for now</button>
+    </section>
+  <footer class="public-footer"><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav></footer></main>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+  <script src="beta-survey.js?v=referrals-20261006"></script>
+</body>
+</html>
