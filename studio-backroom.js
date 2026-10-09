@@ -223,12 +223,13 @@
   }
   function showBetaDetail(tester) {
     const content = $('beta-detail-content'); content.replaceChildren();
-    content.append(node('p', 'BETA TESTER', 'eyebrow'), node('h2', tester.display_name || tester.email || 'Tester'));
+    content.append(node('p', 'STUDIO FEEDBACK', 'eyebrow'), node('h2', tester.display_name || tester.email || 'Tester'));
     const facts = node('dl', undefined, 'facts beta-detail-facts');
     addDetailFact(facts, 'Email', tester.email || '—');
     addDetailFact(facts, 'Resale relationship', pretty(tester.resale_relationship));
     addDetailFact(facts, 'Platforms', Array.isArray(tester.platforms) ? tester.platforms.map(pretty).join(', ') : '—');
     addDetailFact(facts, 'Ideal monthly listings', pretty(tester.ideal_monthly_listing_volume));
+    addDetailFact(facts, 'Feedback origin', pretty(tester.feedback_origin || 'beta_intake'));
     addDetailFact(facts, 'Account group', pretty(tester.account_group));
     addDetailFact(facts, 'Campaign source code', tester.source_code || 'Direct / not captured');
     addDetailFact(facts, 'How they heard about us', pretty(tester.how_heard || 'not_reported'));
@@ -270,7 +271,7 @@
     }
   }
   function renderBeta(data) {
-    $('beta-caption').textContent = `${groups[data.audience] || pretty(data.audience)} · ${number(data.tester_total)} beta testers match these filters · Updated ${date(data.as_of)}.`;
+    $('beta-caption').textContent = `${groups[data.audience] || pretty(data.audience)} · ${number(data.tester_total)} accounts match these filters · Updated ${date(data.as_of)}.`;
     $('beta-tester-count').textContent = `${number(data.tester_total)} testers`;
     const funnel = $('beta-funnel'); funnel.replaceChildren();
     for (const key of ['profile_completed', 'account_verified', 'trial_started', 'first_item', 'three_items', 'survey_submitted', 'paid_continuation']) {
@@ -279,7 +280,7 @@
     }
     const referrals = $('beta-referral-rows'); referrals.replaceChildren();
     for (const source of data.referral_sources || []) { const row = node('tr'); row.append(node('td', source.source === 'not_reported' ? 'Not recorded yet' : pretty(source.source)), node('td', number(source.users))); referrals.append(row); }
-    if (!(data.referral_sources || []).length) emptyRow(referrals, 'No beta accounts in this group match these filters yet.', 2);
+    if (!(data.referral_sources || []).length) emptyRow(referrals, 'No feedback accounts in this group match these filters yet.', 2);
     const body = $('beta-tester-rows'); body.replaceChildren();
     for (const tester of data.testers) {
       const row = node('tr');
@@ -293,7 +294,7 @@
       const detail = node('td'), detailButton = node('button', 'View'); detailButton.type = 'button'; detailButton.addEventListener('click', () => showBetaDetail(tester)); detail.append(detailButton); row.append(detail);
       body.append(row);
     }
-    if (!data.testers.length) emptyRow(body, 'No beta testers match these filters yet.', 8);
+    if (!data.testers.length) emptyRow(body, 'No accounts match these filters yet.', 8);
     $('beta-data').hidden = false;
     $('beta-export').disabled = false;
   }
@@ -338,8 +339,8 @@
   $('beta-filters').addEventListener('submit', event => { event.preventDefault(); void loadBeta(); });
   $('beta-export').addEventListener('click', () => {
     if (!betaSnapshot || !window.DRESSUP_STUDIO_ADMIN) return;
-    const rows = [['Beta testers · owner-only export'], ['As of', betaSnapshot.as_of], [], ['Profile completed', betaSnapshot.funnel.profile_completed], ['Account verified', betaSnapshot.funnel.account_verified], ['Trial started', betaSnapshot.funnel.trial_started], ['First item', betaSnapshot.funnel.first_item], ['Three items', betaSnapshot.funnel.three_items], ['Survey submitted', betaSnapshot.funnel.survey_submitted], ['Paid continuation', betaSnapshot.funnel.paid_continuation], [], ['Name', 'Email', 'Account group', 'Resale type', 'Platforms', 'Ideal listings', 'Campaign source', 'How heard', 'Referral detail', 'Signup date', 'Trial items', 'Trial stage', 'Survey state', 'Output readiness', 'Most valuable feature', 'Friction', 'Likely volume', '$12.99 fit', 'Definite yes', 'Paid choice', 'Issue flag']];
-    for (const t of betaSnapshot.testers) { const s = t.survey_response || {}; rows.push([t.display_name, t.email, t.account_group, t.resale_relationship, Array.isArray(t.platforms) ? t.platforms.join('; ') : '', t.ideal_monthly_listing_volume, t.source_code, t.how_heard, t.how_heard_detail, t.signup_date, t.trial_completed_items, t.trial_stage, t.survey_state, s.output_readiness, s.most_valuable_feature, s.friction, s.likely_monthly_volume, s.price_fit, s.definite_yes, t.paid_beta_decision, t.issue_flag ? 'yes' : 'no']); }
+    const rows = [['Beta testers · owner-only export'], ['As of', betaSnapshot.as_of], [], ['Profile completed', betaSnapshot.funnel.profile_completed], ['Account verified', betaSnapshot.funnel.account_verified], ['Trial started', betaSnapshot.funnel.trial_started], ['First item', betaSnapshot.funnel.first_item], ['Three items', betaSnapshot.funnel.three_items], ['Survey submitted', betaSnapshot.funnel.survey_submitted], ['Paid continuation', betaSnapshot.funnel.paid_continuation], [], ['Name', 'Email', 'Feedback origin', 'Account group', 'Resale type', 'Platforms', 'Ideal listings', 'Campaign source', 'How heard', 'Referral detail', 'Signup date', 'Trial items', 'Trial stage', 'Survey state', 'Output readiness', 'Most valuable feature', 'Friction', 'Likely volume', '$12.99 fit', 'Definite yes', 'Paid choice', 'Issue flag']];
+    for (const t of betaSnapshot.testers) { const s = t.survey_response || {}; rows.push([t.display_name, t.email, t.feedback_origin, t.account_group, t.resale_relationship, Array.isArray(t.platforms) ? t.platforms.join('; ') : '', t.ideal_monthly_listing_volume, t.source_code, t.how_heard, t.how_heard_detail, t.signup_date, t.trial_completed_items, t.trial_stage, t.survey_state, s.output_readiness, s.most_valuable_feature, s.friction, s.likely_monthly_volume, s.price_fit, s.definite_yes, t.paid_beta_decision, t.issue_flag ? 'yes' : 'no']); }
     const cell = value => { let text = String(value ?? ''); if (/^[=+@\-\t\r]/.test(text)) text = "'" + text; return `"${text.replaceAll('"','""')}"`; };
     const blob = new Blob(['\ufeff' + rows.map(row => row.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob), link = node('a'); link.href = url; link.download = `studio-beta-testers-${betaSnapshot.as_of.slice(0,10)}.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
