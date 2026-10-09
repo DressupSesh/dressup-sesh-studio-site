@@ -20,7 +20,7 @@
 <meta content="Three complete items free. Join the Dressup Sesh Studio private beta." name="description"/>
 <title>Private Beta — Dressup Sesh Studio</title>
 <link href="/approved-beta.css?v=approved-20260927" rel="stylesheet"/>
-<meta content="no-referrer" name="referrer"/><meta content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests" http-equiv="Content-Security-Policy"/></head>
+<meta content="no-referrer" name="referrer"/><meta content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests" http-equiv="Content-Security-Policy"/><link href="/public-basics.css?v=20261009" rel="stylesheet"/></head>
 <body data-page="beta">
 
 <main class="beta-page">
@@ -28,7 +28,7 @@
 <a aria-label="Dressup Sesh Studio" class="wordmark" href="/beta/">
 <img alt="Dressup Sesh Studio" class="studio-logo" height="455" src="/assets/dressup-sesh-final-studio-logo.png" width="1708"/>
 </a>
-<a class="outline-link" href="/?intent=signin">Already use Studio? Sign in</a>
+<nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav><a class="outline-link" href="/?intent=signin">Already use Studio? Sign in</a>
 </header>
 <section class="beta-cover" id="beta-intro">
 <div class="beta-invitation">
@@ -97,13 +97,14 @@
 <label class="field" for="how-heard-detail">Who or where specifically? <span class="intake-note">Optional</span><input id="how-heard-detail" name="how-heard-detail" maxlength="120" placeholder="An account, event, or other detail" type="text"/></label>
 <label class="field" for="beta-email">What is the best email for your account?<input autocomplete="email" id="beta-email" maxlength="254" name="email" placeholder="you@email.com" required="" type="email"/></label>
 <div aria-label="Security verification" class="turnstile" hidden="" id="beta-turnstile"></div><button class="solid-button" id="send-beta-email" type="submit">CREATE MY TRIAL ACCOUNT <span aria-hidden="true">→</span></button>
-<p class="intake-note">You’ll verify your email, then enter your three-item Studio trial.</p>
+<p class="intake-note">You’ll verify your email, then enter your three-item Studio trial. By creating an account, you agree to the <a href="/terms/">Terms</a> and acknowledge the <a href="/privacy/">Privacy notice</a>.</p>
 <p class="form-error" id="step-two-error" role="alert"></p></fieldset>
 </form>
 </div>
 </section>
 <section class="beta-success" hidden="" id="beta-success"><p class="kicker">YOUR STUDIO TRIAL</p><h2 id="success-title">Check your email.</h2><p id="success-copy"></p><a class="quiet-link" href="/?intent=signin">Already have an account? Sign in instead</a></section>
-</main>
+<footer class="public-footer"><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav></footer></main>
 
 <script src="studio-settings.js?v=1"></script><script src="../campaign-analytics.js?v=20260929"></script><script src="../turnstile.js?v=2"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script><script src="beta.js?v=referrals-20261006"></script></body>
 </html>
+

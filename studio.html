@@ -35,9 +35,9 @@
     .paywall-dialog{width:min(92vw,500px);border:1px solid var(--line);background:var(--cream);padding:clamp(30px,6vw,52px);box-shadow:0 30px 90px rgba(23,22,20,.28);text-align:center}.paywall-dialog::backdrop{background:rgba(23,22,20,.62);backdrop-filter:blur(3px)}.paywall-dialog h2{margin:0;font:500 clamp(36px,7vw,52px)/1 Georgia,serif;letter-spacing:-.035em}.paywall-dialog>p:not(.eyebrow){margin:20px auto 0;max-width:380px;color:var(--muted);font-size:14px;line-height:1.6}
     @media(max-width:700px){.usage-pill{position:fixed;left:12px;bottom:12px;z-index:50;background:var(--cream);box-shadow:0 8px 24px rgba(23,22,20,.14)}}
   </style>
-<link href="studio-frame.css?v=approved-20260923" rel="stylesheet"/><link href="approved-landing.css?v=approved-20260923" rel="stylesheet"/></head>
+<link href="studio-frame.css?v=approved-20260923" rel="stylesheet"/><link href="approved-landing.css?v=approved-20260923" rel="stylesheet"/><link href="/public-basics.css?v=20261009" rel="stylesheet"/></head>
 <body class="auth-pending">
-<section aria-labelledby="login-title" class="login-gate" id="login-gate"><header class="site-header"><a aria-label="Dressup Sesh Studio home" class="wordmark" href="/"><img alt="Dressup Sesh Studio" class="studio-logo" height="455" src="/assets/dressup-sesh-final-studio-logo.png" width="1708"/></a><button class="outline-link public-signin" id="gate-signin" type="button">SIGN IN</button></header><div class="landing-main">
+<section aria-labelledby="login-title" class="login-gate" id="login-gate"><header class="site-header"><a aria-label="Dressup Sesh Studio home" class="wordmark" href="/"><img alt="Dressup Sesh Studio" class="studio-logo" height="455" src="/assets/dressup-sesh-final-studio-logo.png" width="1708"/></a><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav><button class="outline-link public-signin" id="gate-signin" type="button">SIGN IN</button></header><div class="landing-main">
 <section aria-labelledby="login-title" class="landing-intro">
 <p class="kicker">AUTOMATED, ELEVATED AND EASY</p>
 <h1 id="login-title">TURN YOUR PHOTOS INTO LISTINGS THAT BUYERS WANT TO OWN.</h1>
@@ -93,7 +93,7 @@
 </div>
 <div aria-label="Choose a Studio detail" class="carousel-controls"><button aria-current="true" aria-label="Coming next" data-slide="0" type="button">01</button><button aria-label="Your item" data-slide="1" type="button">02</button><button aria-label="Why it matters" data-slide="2" type="button">03</button><button aria-label="Free trial" data-slide="3" type="button">04</button><button aria-label="Private beta" data-slide="4" type="button">05</button><button aria-label="Creative add-on" data-slide="5" type="button">06</button><button aria-label="About Studio" data-slide="6" type="button">07</button></div>
 </section>
-</div><footer class="landing-footer"><span>DRESSUP SESH. STUDIO</span><a href="/beta/">TRY 3 ITEMS FREE</a><a href="/?intent=signin">SIGN IN</a></footer><p class="gate-message" id="gate-message" role="status"></p><dialog aria-describedby="waitlist-description" aria-labelledby="waitlist-title" class="practices-dialog waitlist-dialog" id="pro-waitlist-dialog">
+</div><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav><footer class="landing-footer"><span>DRESSUP SESH. STUDIO</span><a href="/beta/">TRY 3 ITEMS FREE</a><a href="/?intent=signin">SIGN IN</a></footer><p class="gate-message" id="gate-message" role="status"></p><dialog aria-describedby="waitlist-description" aria-labelledby="waitlist-title" class="practices-dialog waitlist-dialog" id="pro-waitlist-dialog">
 <button aria-label="Close waitlist" class="dialog-close" id="close-pro-waitlist" type="button">×</button>
 <p class="kicker">BULK LISTING PRO</p>
 <h2 id="waitlist-title">Join the waitlist.</h2>
@@ -108,13 +108,14 @@
 <main class="app-shell" id="top">
 <header class="topbar">
 <a aria-label="Dressup Sesh Studio home" class="brand brand-wordmark" href="#top"><img alt="Dressup Sesh Studio" class="studio-logo" height="455" src="/assets/dressup-sesh-final-studio-logo.png" width="1708"/></a>
-<div class="account-tools">
+<nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav><div class="account-tools">
 <span class="usage-pill hidden" id="usage-pill"></span>
 <button class="plan-button hidden" id="plan-button" type="button">PLAN</button>
 <span class="connection-pill" id="connection-pill"><span class="status-dot"></span><span id="connection-copy">Photo cleanup ready</span></span>
 <button class="auth-button" id="auth-button">SIGN IN</button>
 </div>
 </header>
+<section class="refund-notice hidden" id="membership-refund-notice" role="status" aria-live="polite"><strong>Your membership was refunded.</strong><p>Subscribe to continue using Studio. Cancel an active old subscription in Manage billing first to stop renewal.</p><div><button type="button" id="refund-subscribe">VIEW SUBSCRIPTION</button><button type="button" id="refund-manage-billing">MANAGE BILLING</button></div></section>
 <section class="intro" hidden="" id="studio-intro"></section>
 <div aria-live="polite" class="goal-tracker hidden" id="goal-tracker">
 <span class="goal-label">CURRENT GOAL</span>
@@ -237,7 +238,7 @@
 </div>
 </div>
 </section>
-<footer><span>DRESSUP SESH STUDIO</span><span>ONE ITEM IN · READY TO SELL OUT</span></footer>
+<footer><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav><span>DRESSUP SESH STUDIO</span><span>ONE ITEM IN · READY TO SELL OUT</span></footer>
 </main>
 <dialog class="auth-dialog" id="auth-dialog">
 <button aria-label="Close sign-in" class="dialog-close" id="dialog-close">×</button>
@@ -319,6 +320,7 @@
 
 <script src="mobile-save.js?v=approved-20260923"></script>
 <script src="page-actions.js?v=approved-20260923"></script>
-<script src="app.js?v=approved-20260923" type="module"></script>
+<script src="app.js?v=refund-access-20261009" type="module"></script>
 <script defer="" src="studio-ui.js?v=approved-20260923"></script><dialog aria-labelledby="practices-title" class="practices-dialog" id="practices-dialog"><button aria-label="Close Best Practices" class="dialog-close" id="practices-close" type="button">×</button><p class="eyebrow">BEST PRACTICES</p><h2 id="practices-title"></h2><p id="practices-copy"></p></dialog></body>
 </html>
+

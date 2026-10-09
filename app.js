@@ -147,11 +147,19 @@ if (configured) {
 function applyAccess(access) {
   if (!access) return;
   state.access = access;
+  const suspended = Boolean(access.access_suspended);
+  const refundNotice = $("#membership-refund-notice");
+  refundNotice?.classList.toggle("hidden", !suspended);
+  const refundManage = $("#refund-manage-billing");
+  refundManage?.classList.toggle("hidden", !suspended || !["active", "trialing"].includes(access.subscription_status));
   const subscribed = Boolean(access.owner || access.paid);
   document.body.classList.toggle("subscribed-studio", subscribed);
   elements.goalTracker.classList.toggle("hidden", !subscribed);
   elements.usagePill.classList.remove("hidden");
-  if (access.owner) {
+  if (suspended) {
+    elements.usagePill.textContent = "SUBSCRIBE TO CONTINUE";
+    elements.usagePill.setAttribute("aria-label", "Membership refunded. Subscribe to continue using Studio.");
+  } else if (access.owner) {
     elements.usagePill.textContent = "UNLIMITED ACCESS";
   } else if (access.paid) {
     const background = Math.max(0, Number(access.background_remaining || 0));
@@ -164,7 +172,7 @@ function applyAccess(access) {
     elements.usagePill.textContent = `${remaining} FREE ITEM${remaining === 1 ? "" : "S"} LEFT`;
   }
   renderBilling(access);
-  updateWorkflowSignals();
+  render();
 }
 
 function setTabStatus(element, status, label) {
@@ -214,6 +222,7 @@ function updateWorkflowSignals() {
 
 function renderBilling(access = state.access) {
   if (!access) return;
+  const suspended = Boolean(access.access_suspended);
   const paid = Boolean(access.paid);
   const owner = Boolean(access.owner);
   const itemsRemaining = owner ? "∞" : Math.max(0, Number(access.items_remaining || 0));
@@ -229,16 +238,18 @@ function renderBilling(access = state.access) {
   elements.billingBackground.textContent = String(backgroundRemaining);
   elements.billingCopy.textContent = String(copyRemaining);
   elements.billingCreative.textContent = String(creativeRemaining);
-  elements.billingItemsRow.classList.toggle("hidden", owner || paid);
-  elements.billingCreditRows.classList.toggle("hidden", !owner && !paid);
+  elements.billingItemsRow.classList.toggle("hidden", owner || paid || suspended);
+  elements.billingCreditRows.classList.toggle("hidden", !owner && !paid && !suspended);
   elements.billingBonusNote.classList.toggle("hidden", !paid || bonusTotal === 0);
   elements.billingBonusNote.textContent = bonusTotal > 0
     ? `Includes saved trial credits: ${bonusBackground} photo cleanup, ${bonusCopy} copy and ${bonusCreative} creative.`
     : "";
 
-  elements.billingPlanTitle.textContent = owner ? "Studio Owner" : paid ? "Private Beta" : "Free Studio Trial";
+  elements.billingPlanTitle.textContent = owner ? "Studio Owner" : suspended ? "Membership refunded" : paid ? "Private Beta" : "Free Studio Trial";
   elements.billingSummary.textContent = owner
     ? "Unlimited Studio access is active."
+    : suspended
+      ? "Your refunded membership no longer provides workflow access. Subscribe to continue. If your old subscription is still active, cancel it in Manage billing first to stop renewal."
     : paid
       ? access.cancel_at_period_end
         ? `Your plan remains active through ${formatBillingDate(access.current_period_end)}.`
@@ -246,7 +257,7 @@ function renderBilling(access = state.access) {
       : "Three free listings share 15 photo cleanups, 3 copy generations and 3 creative images.";
   elements.billingSubscribe.classList.toggle("hidden", owner || paid);
   elements.billingAddCredits.classList.toggle("hidden", owner || !paid);
-  elements.billingManage.classList.toggle("hidden", owner || !paid);
+  elements.billingManage.classList.toggle("hidden", owner || (!paid && !(suspended && ["active", "trialing"].includes(access.subscription_status))));
 }
 
 function formatBillingDate(value) {
@@ -262,6 +273,7 @@ function showPaywall() {
 function handleApiProblem(problem = {}) {
   if (problem.access) applyAccess(problem.access);
   if (problem.code === "TRIAL_EXHAUSTED") showPaywall();
+  if (problem.code === "SUBSCRIPTION_REFUNDED") openBilling("Your membership was refunded. Subscribe to continue using Studio.");
   if (problem.code === "OPERATION_LIMIT" && problem.access?.operation === "creative_image" && state.access?.paid) {
     openBilling("You’ve used the creative images included this month. Add 10 more whenever you need them.");
   }
@@ -642,7 +654,10 @@ async function refreshSession(session) {
 }
 
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && state.session && !activeGenerationJobs.size) void recoverRecentGenerations();
+  if (!document.hidden && state.session) {
+    void refreshAccess();
+    if (!activeGenerationJobs.size) void recoverRecentGenerations();
+  }
 });
 
 async function invokeStudioFunction(name, body = {}) {
@@ -984,7 +999,7 @@ function render() {
   elements.actionBar.classList.toggle("hidden", !hasPhotos);
   elements.count.classList.toggle("hidden", !hasPhotos);
   elements.count.textContent = `${state.photos.length} PHOTO${state.photos.length === 1 ? "" : "S"}`;
-  elements.process.disabled = !configured || !state.session || !pendingCleanupPhotos.length || state.processing || isPreparing;
+  elements.process.disabled = Boolean(state.access?.access_suspended) || !configured || !state.session || !pendingCleanupPhotos.length || state.processing || isPreparing;
   elements.clearAll.disabled = state.processing || state.creativeGenerating;
   elements.process.textContent = state.processing
     ? `PROCESSING ${state.processedCount + 1} OF ${state.processingTotal}…`
@@ -995,13 +1010,13 @@ function render() {
         : "ALL PHOTOS READY";
   elements.emptyListing.classList.toggle("hidden", hasPhotos || Boolean(elements.listingOutput.textContent.trim()));
   elements.listingLayout.classList.toggle("hidden", !hasPhotos && !elements.listingOutput.textContent.trim());
-  elements.listingButton.disabled = !configured || !state.session || !usablePhotos.length || isPreparing || uncertainGenerationOperations.has("listing_copy");
+  elements.listingButton.disabled = Boolean(state.access?.access_suspended) || !configured || !state.session || !usablePhotos.length || isPreparing || uncertainGenerationOperations.has("listing_copy");
   if (uncertainGenerationOperations.has("listing_copy")) elements.listingButton.textContent = "STATUS CHECK REQUIRED";
   elements.listingNote.classList.toggle("hidden", configured && Boolean(state.session));
   elements.listingNote.textContent = configured ? "Sign in to activate listing generation." : "Listing generation is temporarily unavailable.";
   elements.emptyCreative.classList.toggle("hidden", hasPhotos || state.creativeResults.length > 0);
   elements.creativeLayout.classList.toggle("hidden", !hasPhotos && !state.creativeResults.length);
-  elements.creativeGenerate.disabled = !configured || !state.session || !productPhotos.length || isPreparing || state.creativeGenerating || uncertainGenerationOperations.has("creative_image");
+  elements.creativeGenerate.disabled = Boolean(state.access?.access_suspended) || !configured || !state.session || !productPhotos.length || isPreparing || state.creativeGenerating || uncertainGenerationOperations.has("creative_image");
   elements.creativeGenerate.textContent = uncertainGenerationOperations.has("creative_image")
     ? "STATUS CHECK REQUIRED" : state.creativeGenerating ? "GENERATING…" : creativeLabels[state.creativeType];
   elements.creativeSaveAll.disabled = !state.creativeResults.length || state.creativeGenerating;
@@ -1456,6 +1471,7 @@ async function processPhotos() {
 
 async function processSinglePhoto(photoId) {
   const photo = state.photos.find((item) => item.id === photoId);
+  if (state.access?.access_suspended) { openBilling("Subscribe to continue using Studio."); return; }
   if (!photo || photo.referenceOnly || photo.retryBlocked || state.processing) return;
 
   state.processing = true;
@@ -1898,7 +1914,7 @@ async function createListing() {
     elements.listingError.classList.remove("hidden");
   } finally {
     state.listingGenerating = false;
-    elements.listingButton.disabled = uncertainGenerationOperations.has("listing_copy");
+    elements.listingButton.disabled = Boolean(state.access?.access_suspended) || uncertainGenerationOperations.has("listing_copy");
     elements.listingButton.textContent = uncertainGenerationOperations.has("listing_copy") ? "STATUS CHECK REQUIRED" : "CREATE LISTING COPY";
     updateWorkflowSignals();
   }
@@ -2109,6 +2125,8 @@ elements.usagePill.addEventListener("click", () => openBilling());
 elements.paywallSubscribe.addEventListener("click", () => beginCheckout("create-checkout-session", elements.paywallSubscribe));
 elements.billingSubscribe.addEventListener("click", () => beginCheckout("create-checkout-session", elements.billingSubscribe));
 elements.billingAddCredits.addEventListener("click", () => beginCheckout("create-credit-checkout-session", elements.billingAddCredits));
+$("#refund-subscribe")?.addEventListener("click", () => openBilling("Your membership was refunded. Subscribe to continue using Studio."));
+$("#refund-manage-billing")?.addEventListener("click", () => elements.billingManage.click());
 elements.billingManage.addEventListener("click", async () => {
   const original = elements.billingManage.textContent;
   elements.billingManage.disabled = true;
@@ -2311,3 +2329,4 @@ if (state.pendingConfirmationEmail) {
 }
 if (requestedAuthIntent === "signin" && !state.session) openAuthDialog();
 render();
+

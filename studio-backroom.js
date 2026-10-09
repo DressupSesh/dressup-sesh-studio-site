@@ -129,7 +129,7 @@
     for (const a of data.accounts) {
       const row = node('tr'), email = node('td', a.email || 'Email unavailable', 'account-email');
       email.append(node('small', a.email_confirmed_at ? 'Email confirmed' : 'Awaiting confirmation'));
-      const plan = node('td', a.plan);
+      const plan = node('td', a.access_suspended ? 'Refunded · suspended' : a.plan);
       plan.append(node('small', a.subscription_status || 'No subscription'));
       if (a.cancel_at_period_end) plan.append(node('small', 'Cancellation scheduled'));
       if (a.current_period_end) plan.append(node('small', `Period ends ${date(a.current_period_end)}`));

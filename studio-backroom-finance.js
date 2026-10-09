@@ -76,9 +76,16 @@
         const row = element('article');row.className = 'finance-refund';
         row.append(element('h3', `${money(refund.amount_cents, refund.currency)} · ${refund.transaction_kind.replaceAll('_', ' ')}`), element('p', `${new Date(refund.occurred_at).toLocaleString()} · ${refund.status} · ${refund.refund_id}`));
         row.append(element('p', refund.account_email || (refund.user_id ? `Account ${refund.user_id}` : 'Account not linked — verify the payment before reviewing credits.')));
-        if (refund.transaction_kind === 'subscription') row.append(element('p', 'Subscription refund: this is not a creative credit pack, so no pack-credit removal button appears. Cancel the subscription in Stripe when service should end. A refund alone does not stop renewal or revoke monthly access.'));
+        if (refund.transaction_kind === 'subscription') {
+          const blocked = refund.membership_access?.blocked;
+          row.append(element('p', blocked === true
+            ? 'Workflow access suspended. Available monthly and saved credits are held until a valid membership resumes. Cancel the subscription in Stripe separately to stop renewal.'
+            : blocked === false
+              ? 'This refund does not suspend the current membership invoice. A newer payment or subscription may have restored access. Cancellation and renewal remain separate Stripe actions.'
+              : 'Membership access could not be confirmed. Sync Stripe records and refresh before checking the account.'));
+        }
         if (refund.review_action) row.append(element('p', refund.review_action === 'keep' ? 'Reviewed: credits kept.' : `Reviewed: ${refund.credits_revoked} unused purchased credits removed.`));
-        else if (refund.status === 'succeeded') {
+        else if (refund.status === 'succeeded' && refund.transaction_kind === 'creative_pack') {
           const keep = element('button', 'Keep credits');keep.type = 'button'; keep.addEventListener('click', () => void review(refund, 'keep', 0)); row.append(keep);
           const eligible = Number(refund.credit_limit?.eligible || 0);
           if (eligible > 0) {
