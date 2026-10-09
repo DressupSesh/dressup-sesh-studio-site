@@ -5,10 +5,10 @@
   <link rel="icon" type="image/png" sizes="64x64" href="/assets/studio-favicon.png?v=1"/>
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/studio-apple-touch-icon.png?v=1"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Dressup Sesh Studio beta feedback.">
+  <meta name="description" content="Share feedback about Dressup Sesh Studio.">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co; upgrade-insecure-requests">
-  <title>Your Dressup Sesh Beta</title>
+  <title>Your Studio feedback</title>
   <link rel="stylesheet" href="../beta.css?v=1">
   <link rel="stylesheet" href="beta-survey.css?v=1">
   <link rel="stylesheet" href="/beta-flow-frame.css?v=approved-20260923">
@@ -16,11 +16,11 @@
 <body>
   <main class="beta-shell survey-shell">
     <header class="beta-header"><a class="wordmark" href="../../"><img class="studio-logo" src="/assets/dressup-sesh-final-studio-logo.png" width="1708" height="455" alt="Dressup Sesh Studio"></a><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav></header>
-    <section class="survey-card" id="loading-card"><p class="eyebrow">Private beta</p><h1>Loading your next step…</h1></section>
+    <section class="survey-card" id="loading-card"><p class="eyebrow">Studio feedback</p><h1>Loading your next step…</h1></section>
     <section class="survey-card" id="survey-card" hidden>
-      <p class="eyebrow">You finished your three free items</p>
+      <p class="eyebrow">You finished your first three items</p>
       <h1>How did it feel?</h1>
-      <p class="lede">A few honest answers help shape what we build next. You can skip this and come back once.</p>
+      <p class="lede">A few honest answers help shape what we build next. You can skip this. We’ll ask once more after 48 hours when you return to Studio.</p>
       <form id="survey-form" novalidate>
         <label class="field">Were the results ready to list?
           <select id="output-readiness" required><option value="">Choose one</option><option value="ready_now">Yes, ready to list</option><option value="small_edits">Mostly—just small edits</option><option value="not_ready">Not ready yet</option></select>
@@ -51,9 +51,16 @@
       <button class="primary" id="continue-beta" type="button">Continue to secure checkout <span>→</span></button>
       <button class="skip-button" id="no-thanks" type="button">No thanks for now</button>
     </section>
+    <section class="survey-card decision-card" id="paid-thanks-card" hidden>
+      <p class="eyebrow">Thank you</p>
+      <h1>Your feedback helps shape Studio.</h1>
+      <p class="lede">Your subscription is active. Head back to your listings whenever you’re ready.</p>
+      <button class="primary" id="return-studio" type="button">Back to Studio <span>→</span></button>
+    </section>
   <footer class="public-footer"><nav class="public-help" aria-label="Support and policies"><a href="/support/">Support</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav></footer></main>
   <script src="../../config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-  <script src="beta-survey.js?v=referrals-20261006"></script>
+  <script src="beta-survey.js?v=everyone-20261009"></script>
 </body>
 </html>
+

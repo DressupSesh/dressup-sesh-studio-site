@@ -591,7 +591,7 @@ async function refreshAccess() {
 }
 
 async function maybeRouteToBetaSurvey() {
-  if (betaSurveyRouting || !state.session || !configured) return;
+  if (betaSurveyRouting || !state.session || !configured || state.pendingAuthAction === "subscribe" || state.checkoutContinuing) return;
   if (window.location.pathname.includes("/beta/survey")) return;
   betaSurveyRouting = true;
   try {
@@ -603,8 +603,8 @@ async function maybeRouteToBetaSurvey() {
     });
     const data = await response.json().catch(() => ({}));
     const beta = data.status;
-    if (response.ok && beta?.enrolled && ["eligible", "reminder_sent"].includes(beta.survey_state)) {
-      window.location.assign("beta/survey/");
+    if (response.ok && beta?.feedback_prompt_due === true) {
+      window.location.assign("/beta/survey/");
     }
   } catch {
     // Survey availability never blocks the Studio workflow.
