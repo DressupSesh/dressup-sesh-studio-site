@@ -1043,7 +1043,7 @@ function render() {
             ? "<span>STATUS CHECK REQUIRED</span>"
             : `<button class="photo-retry" type="button" data-retry="${photo.id}" ${state.processing ? "disabled" : ""}>TRY AGAIN</button>`
           : `<span>${Math.max(1, Math.round(photo.file.size / 1024))} KB</span>`}</div>
-      <label class="photo-label">Label photo<select data-photo-label="${photo.id}" ${state.processing || state.listingGenerating || state.creativeGenerating ? "disabled" : ""}>${["", "Measurements", "Front", "Back", "Details", "Fabric close up"].map(label => `<option value="${label}" ${photo.label === label ? "selected" : ""}>${label || "No label"}</option>`).join("")}</select></label>
+      <label class="photo-label">Label photo<select data-photo-label="${photo.id}" ${state.processing || state.listingGenerating || state.creativeGenerating ? "disabled" : ""}>${["", "Measurements", "Front", "Back", "Details", "Fabric close up", "Brand tag", "Composition tag"].map(label => `<option value="${label}" ${photo.label === label ? "selected" : ""}>${label || "No label"}</option>`).join("")}</select></label>
       <button class="reference-toggle ${photo.referenceOnly ? "selected" : ""}" type="button" data-reference-only="${photo.id}" ${!photo.preview || state.processing || state.creativeGenerating ? "disabled" : ""}>${photo.referenceOnly ? "REFERENCE ONLY ✓" : "MARK REFERENCE ONLY"}</button>
       ${photo.error ? `<p class="error-text">${photo.error}</p>` : ""}
     </article>`).join("") + (state.photos.length < 20 ? `<button class="add-card" id="add-more"><span>+</span>Add more</button>` : "");
