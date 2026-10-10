@@ -38,7 +38,7 @@
 </form>
 </section>
 <div class="ds-hidden" id="backroom-app">
-<section class="intro"><div><p class="eyebrow">LISTING STUDIO · OPERATIONS</p><h1>Your studio, in focus.</h1><p>Know who is using it, what is working, and where to look next.</p></div><p class="read-only">Private owner controls</p></section>
+<section class="intro"><div><p class="eyebrow">J9 VENTURES · STUDIO OPERATIONS</p><h1>Your studio, in focus.</h1><p>Know who is using it, what is working, and where to look next.</p></div><p class="read-only">Private owner controls</p></section>
 <nav aria-label="Studio Back Room sections" class="backroom-tabs" role="tablist">
 <button aria-controls="finance-pane" aria-selected="true" id="finance-tab" role="tab" type="button">Operations &amp; finance</button>
 <button aria-controls="beta-pane" aria-selected="false" id="beta-tab" role="tab" type="button">Beta</button>
@@ -54,7 +54,15 @@
 <div hidden="" id="dashboard-data">
 <aside class="notice" hidden="" id="classification-note"><span id="classification-text"></span> <button class="text-button" id="show-unclassified" type="button">Review unclassified accounts</button></aside>
 <p class="caption" id="snapshot-caption"></p>
-<div id="finance-module-overview" data-module-group="finance" data-module-id="overview" role="tabpanel" aria-labelledby="finance-module-tab-overview" tabindex="0"><section aria-label="Account overview" class="kpis">
+<div id="finance-module-overview" data-module-group="finance" data-module-id="overview" role="tabpanel" aria-labelledby="finance-module-tab-overview" tabindex="0"><section class="panel" aria-labelledby="traffic-heading"><div class="section-heading"><div><p class="eyebrow">J9 VENTURES · SITE TRAFFIC</p><h2 id="traffic-heading">New site visits</h2></div><button id="traffic-refresh" type="button">Refresh visits</button></div>
+<div class="kpis" aria-label="Site traffic overview">
+<article class="metric"><span>Visits today</span><strong id="traffic-today">—</strong><small>Today in Seattle / Pacific time</small></article>
+<article class="metric"><span>Visits in window</span><strong id="traffic-visits">—</strong><small id="traffic-visit-window"></small></article>
+<article class="metric"><span>New browsers</span><strong id="traffic-new">—</strong><small id="traffic-new-window"></small></article>
+<article class="metric"><span>Page views</span><strong id="traffic-views">—</strong><small id="traffic-view-window"></small></article>
+</div><p id="traffic-status" role="status" aria-live="polite">Owner verification required.</p><p id="traffic-caption" class="caption"></p><p class="caption">A visit groups page loads from one browser until 30 minutes without a tracked page view. New browsers means first observed since this measurement began; browsers are not people. Counts include all measured pages, including your testing. Account group filters do not change these counts. Earlier repeat visits cannot be reconstructed.</p>
+<details><summary>Pages and sources</summary><div class="two-col"><div class="table-scroll"><table><caption>Pages in the selected window</caption><thead><tr><th>Page</th><th>Visits</th><th>Page views</th></tr></thead><tbody id="traffic-pages"></tbody></table></div><div class="table-scroll"><table><caption>First recorded campaign source · top 20</caption><thead><tr><th>Source</th><th>Visits</th><th>Page views</th></tr></thead><tbody id="traffic-sources"></tbody></table></div></div><p class="caption">One visit can include several pages; page counts do not add up to distinct site visits. Direct means no recorded campaign code.</p></details></section>
+<section aria-label="Account overview" class="kpis">
 <article class="panel metric"><span>Accounts</span><strong id="accounts-total">—</strong><small id="accounts-new"></small></article>
 <article class="panel metric"><span>Email confirmed</span><strong id="confirmed-total">—</strong><small>Current accounts in this group</small></article>
 <article class="panel metric"><span>Active users</span><strong id="active-total">—</strong><small>At least one successful operation in window</small></article>
@@ -91,7 +99,7 @@
 <section class="panel"><p class="eyebrow">RECENT OPERATIONS</p><h2>The latest activity</h2><ol class="activity" id="recent-activity"></ol><p class="caption">Latest 20 operations in this window. No customer photos or generated copy are exposed here.</p></section>
 <section class="panel"><p class="eyebrow">RECENT LIVE BILLING</p><h2>Latest money events</h2><ol class="activity" id="recent-billing"></ol><p class="caption">Live-mode USD payment and refund records only. See reconciliation for recorded fees; open Stripe for payout timing and dispute details.</p><a href="https://dashboard.stripe.com/" rel="noopener noreferrer" target="_blank">Open Stripe billing ↗</a></section>
 </div></div>
-<div id="finance-module-measurement" data-module-group="finance" data-module-id="measurement" role="tabpanel" aria-labelledby="finance-module-tab-measurement" tabindex="0"><section class="panel"><p class="eyebrow">BUSINESS MEASUREMENT</p><h2>What we can verify</h2><ul class="measurement-list"><li>Accounts, confirmations, recent sign-in and current credits</li><li>Successful / failed operations, background retries and measured provider-cost estimates</li><li>Live collected revenue, refunds, MRR and scheduled subscription cancellations</li></ul><h3>Not yet measured here</h3><p>True profit and historical conversion before tracking began. The Beta tab shows campaign visits and self-reported referral sources; browsers are not the same as accounts.</p><p class="caption">Use Sync Stripe records to reconcile an earlier date window. Fee totals stay unknown until that window has complete sync coverage.</p></section></div>
+<div id="finance-module-measurement" data-module-group="finance" data-module-id="measurement" role="tabpanel" aria-labelledby="finance-module-tab-measurement" tabindex="0"><section class="panel"><p class="eyebrow">BUSINESS MEASUREMENT</p><h2>What we can verify</h2><ul class="measurement-list"><li>Accounts, confirmations, recent sign-in and current credits</li><li>Successful / failed operations, background retries and measured provider-cost estimates</li><li>Live collected revenue, refunds, MRR and scheduled subscription cancellations</li></ul><h3>Not yet measured here</h3><p>True profit and historical conversion before tracking began. Overview shows site visits and page views from the new measurement start date. The Beta tab shows campaign acquisition and self-reported referral sources; browsers are not the same as accounts.</p><p class="caption">Use Sync Stripe records to reconcile an earlier date window. Fee totals stay unknown until that window has complete sync coverage.</p></section></div>
 </div>
 </section>
 <section aria-labelledby="beta-tab" hidden="" id="beta-pane" role="tabpanel">
@@ -136,7 +144,7 @@
 <script src="config.js"></script><script src="turnstile.js?v=2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
 <script src="shared-supabase-client.js?v=2"></script>
-<script src="studio-backroom-auth.js?v=1"></script><script src="studio-backroom.js?v=20261009-feedback"></script><script src="studio-backroom-campaigns.js?v=20260929"></script>
+<script src="studio-backroom-auth.js?v=1"></script><script src="studio-backroom.js?v=20261009-feedback"></script><script src="studio-backroom-traffic.js?v=site-visits-20261010"></script><script src="studio-backroom-campaigns.js?v=20260929"></script>
 <script src="studio-backroom-waitlist.js?v=approved-20260923"></script><script src="studio-backroom-finance.js?v=20261009-refunds"></script><script type="module" src="studio-backroom-prompts.js?v=draft-image-test-20261010"></script>
 
 <script src="studio-backroom-modules.js?v=20261009"></script></body></html>
