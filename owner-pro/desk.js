@@ -308,51 +308,72 @@
     download('Studio-Inventory-Catalog.csv',C.csv([['SKU','Title','Description','Brand','Size','Color','Department','Category','Quantity','Listing Price','Purchase Cost','Storage Location','Condition / Notes','Seller Reviewed','Batch','Product Filenames','Reference Filenames'],...a.map(p=>[...C.fields.map(k=>p[k]),p.reviewed?'Yes':'No',p.batch||state.batch,(p.photoNames||[]).join('; '),(p.referenceNames||[]).join('; ')])]));
   });
   $('#backup-json').addEventListener('click',()=>download('Studio-Text-Catalog-Backup.json',JSON.stringify(state,null,2),'application/json'));
-  $('#export-format').onchange=e=>{
-    const catalog=e.target.value==='catalog';
-    $('#posh-format').hidden=catalog;
-    $('#catalog-format').hidden=!catalog;
+  const format=$('#export-format'),inputs=$('#export-inputs'),status=$('#export-status'),files=$('#export-files');
+  const batch=()=>state.pieces.filter(C.active);
+  const help={
+    zip:'Review your items, then prepare the export. The first attached product photo is the cover. Studio converts product photos to JPEG and names them by SKU. To use a cleaned or creative image, download it and attach it as a product photo first. Download both files, choose Photos on Your Computer in Poshmark, and upload the CSV and ZIP together. Reference photos stay out of the ZIP.',
+    url:'Paste direct public image links for each SKU, one per line, cover first. Leave the links blank to add photos later in your Poshmark drafts. Download the CSV, choose Photos in an Online Cloud in Poshmark, and upload the CSV alone.',
+    edits:'For existing closet SKUs only. Enter only the values you intend to change. Quantity 0 marks an item sold out. Price 0 marks it not for sale. Changing price can clear existing Smart Sell settings. Choose Quick Edits in Poshmark and upload the CSV alone.',
+    catalog:'Download your current and archived inventory for your own records.'
   };
-  $('#catalog-download').onclick=()=>$('#export-catalog').click();
-  let template=null;
-  const mapKeys={sku:'SKU',department:'Department',category:'Category',size:'Size',quantity:'Quantity',availability:'Availability',title:'Title',description:'Description',brand:'Brand',price:'Listing Price'};
-  async function loadTemplate(f, previousMap={}){
-    template=null;$('#download-posh').disabled=true;$('#mapping').innerHTML='';if(!f)return;
+  function showExport(){
+    $('#photo-help').textContent=help[format.value];status.textContent='';files.replaceChildren();inputs.replaceChildren();
+    for(const p of batch()){
+      if(!['url','edits'].includes(format.value))continue;
+      const row=document.createElement('fieldset');const legend=document.createElement('legend');legend.textContent=p.sku;row.append(legend);
+      for(const [k,label] of format.value==='url'?[['urls','Public image URLs']]:[['qty','New quantity'],['price','New listing price'],['shipping','Shipping discount']]){
+        const wrapper=document.createElement('label'),input=document.createElement(k==='urls'?'textarea':'input');wrapper.textContent=label+' ';input.value=p.posh?.[k]||'';input.oninput=()=>{p.posh||={};p.posh[k]=input.value.trim();save();files.replaceChildren()};wrapper.append(input);row.append(wrapper);
+      }
+      inputs.append(row);
+    }
+  }
+  format.onchange=showExport;
+  $('[data-view="export"]').addEventListener('click',showExport);
+  function fileLink(name,blob){
+    const a=document.createElement('a');a.href=photoURL(blob);a.download=name;a.textContent='Download '+name;files.append(a,document.createElement('br'));
+  }
+  $('#make-export').onclick=async e=>{
+    const mode=format.value;
+    files.replaceChildren();status.textContent='';if(mode==='catalog'){ $('#export-catalog').click();return }
+    const headers=POSH_HEADERS[mode],rows=[],zip=mode==='zip'?new JSZip():null;
+    e.target.disabled=true;format.disabled=true;
     try{
-      if(f.size>1024*1024)throw Error('Import an empty template under 1 MB.');
-      const rows=C.parseCSV(await f.text());if(rows.length<2)throw Error('The official template must have two header rows.');if(rows.slice(2).some(r=>r.some(v=>v.trim())))throw Error('Use an empty official template with only its two header rows. Keep existing inventory in a separate file.');
-      const width=Math.max(...rows.slice(0,2).map(r=>r.length));if(width<7)throw Error('This file does not look like a full listing template.');
-      template={headers:rows.slice(0,2).map(r=>Array.from({length:width},(_,i)=>r[i]||'')),width};
-      $('#template-status').textContent=`Loaded ${f.name}. Map required columns below. This is not a compatibility certification; verify taxonomy and test the file in your account.`;
-      $('#mapping').innerHTML=Object.entries(mapKeys).map(([k,label])=>`<label>${label}${['sku','department','category','size','quantity','availability'].includes(k)?' *':''}<select data-map="${k}"><option value="">Choose a column</option>${Array.from({length:width},(_,i)=>{const n=template.headers[1][i]||template.headers[0][i]||'Unnamed';return `<option value="${i}" ${n.trim().toLowerCase()===label.toLowerCase()?'selected':''}>${i+1}: ${esc(n)}</option>`;}).join('')}</select></label>`).join('');
-      for(const select of $$('[data-map]'))if(previousMap[select.dataset.map]!==undefined)select.value=previousMap[select.dataset.map];
-      $('#download-posh').disabled=false;
-      rememberTemplate();
-    }catch(err){$('#template-status').textContent=err.message;}
-  }
-  const templateKey='studio-posh-cloud-template-v1';
-  function rememberTemplate(){
-    if(!template)return;
-    const mapping=Object.fromEntries($$('[data-map]').map(s=>[s.dataset.map,s.value]));
-    try{localStorage.setItem(templateKey,JSON.stringify({headers:template.headers,mapping}))}catch{}
-  }
-  $('#mapping').addEventListener('change',rememberTemplate);
-  $('#template-file').addEventListener('change',e=>loadTemplate(e.target.files[0]));
-  try{
-    const cached=JSON.parse(localStorage.getItem(templateKey));
-    if(cached)loadTemplate(new File([C.csv(cached.headers,false)],'saved Poshmark template.csv'),cached.mapping);
-  }catch{}
-  $('#download-posh').addEventListener('click',()=>{
-    if(!template)return;const map={};$$('[data-map]').forEach(s=>{if(s.value!=='')map[s.dataset.map]=Number(s.value);});
-    for(const k of ['sku','department','category','size','quantity','availability'])if(map[k]===undefined){$('#export-status').textContent='Map '+mapKeys[k]+' first.';return;}
-    if(new Set(Object.values(map)).size!==Object.keys(map).length){$('#export-status').textContent='Each mapped field needs a different column.';return;}
-    const pieces=state.pieces.filter(C.active);if(!pieces.length){$('#export-status').textContent='Add and review pieces in the current batch first.';return;}
-    const errors=pieces.flatMap(p=>C.issues(p,allPieces()).map(x=>(p.sku||'Piece')+': '+x));
-    if(errors.length){$('#export-status').textContent=errors.slice(0,8).join(' · ');return;}
-    const rows=pieces.map(p=>{const r=Array(template.width).fill('');Object.entries(map).forEach(([k,i])=>{r[i]=k==='availability'?'Draft':p[k]||'';});return r;});
-    if(rows.flat().some(v=>/^[\s]*[=+@-]/.test(String(v)))){$('#export-status').textContent='A field begins with a spreadsheet formula character. Remove it before exporting.';return;}
-    download('Poshmark-Drafts-TEST-Batch-'+state.batch+'.csv',C.csv([...template.headers,...rows],false));
-    $('#export-status').textContent=`Prepared ${pieces.length} draft rows with both original headers. Verify taxonomy, check SKUs against your closet and test in Poshmark. Photo ZIP export is still pending.`;
-  });
+      for(const p of batch()){
+        const changes=p.posh||{};
+        if(mode==='edits'&&!(changes.qty||changes.price||changes.shipping))continue;
+        if(!/^[A-Za-z0-9_-]{4,500}$/.test(p.sku))throw Error(p.sku+' · Use a unique SKU of at least four letters, digits, dashes or underscores for this export.');
+        if(allPieces().filter(x=>x.sku.toUpperCase()===p.sku.toUpperCase()).length>1)throw Error('Duplicate SKU '+p.sku);
+        let values={sku:p.sku};
+        if(mode==='edits'){
+          if(changes.qty&&!/^\d+$/.test(changes.qty)||changes.price&&!/^\d+(\.\d{1,2})?$/.test(changes.price))throw Error(p.sku+' · Check quantity and price.');
+          Object.assign(values,{quantity:changes.qty,'listing price':changes.price,'shipping discount':changes.shipping});
+        }else{
+          const issues=C.issues(p,allPieces());if(issues.length)throw Error(p.sku+' · '+issues.join(', '));
+          Object.assign(values,{title:p.title,description:p.description,brand:p.brand,department:p.department,category:p.category,quantity:p.quantity,size:p.size,'listing price':p.price,color1:p.color,availability:'Draft'});
+          if(mode==='zip'){
+            const images=sessionPhotos.get(p.id)?.products||[];
+            if(!images.length||images.length>16)throw Error(p.sku+' · Attach 1–16 product photos in this tab.');
+            for(const [i,photo] of images.entries()){
+              if(!photo.file)throw Error(p.sku+' · Reattach product photos.');
+              zip.file(p.sku+'-'+(i||'CS')+'.jpg',await (await prepareListingImage(photo.file)).arrayBuffer());
+            }
+          }else{
+            const urls=(changes.urls||'').split(/\s+/).filter(Boolean);
+            if(urls.length>16||urls.some(u=>!/^https?:\/\/[^\s]+$/i.test(u)))throw Error(p.sku+' · Supply up to 16 public image URLs.');
+            urls.forEach((url,i)=>values[i?'alt image '+i:'primary image']=url);
+          }
+        }
+        const row=headers[0].map(k=>values[k.trim().toLowerCase()]??'');
+        if(row.some(v=>/^\s*[=@+-]/.test(v)))throw Error(p.sku+' · Check fields starting with a spreadsheet formula character.');
+        rows.push(row);
+      }
+      if(!rows.length)throw Error(mode==='edits'?'Enter a change for an existing SKU first.':'Add an item first.');
+      const photoZip=zip&&await zip.generateAsync({type:'blob'});
+      fileLink('Poshmark-'+mode+'-batch-'+state.batch+'.csv',new Blob([C.csv([...headers,...rows],false)],{type:'text/csv'}));
+      if(photoZip)fileLink('Poshmark-photos-'+state.batch+'.zip',photoZip);
+      status.textContent=rows.length+' SKU(s) prepared. Match the template type in Poshmark and review before uploading.';
+    }catch(err){status.textContent=err.message}finally{e.target.disabled=false;format.disabled=false}
+  };
+  showExport();
   render();
 })();

@@ -631,6 +631,16 @@ async function refreshSession(session) {
   elements.authButton.classList.toggle("signed-in", Boolean(state.session));
   elements.usagePill.classList.toggle("hidden", !state.session);
   elements.planButton.classList.toggle("hidden", !state.session);
+  let batchPro=document.getElementById("owner-batch-pro");
+  if(access?.owner && !batchPro){
+    batchPro=document.createElement("a");
+    batchPro.id="owner-batch-pro";
+    batchPro.className="plan-button";
+    batchPro.textContent="Batch Pro";
+    batchPro.href="/owner-pro/";
+    elements.planButton.before(batchPro);
+  }
+  if(batchPro)batchPro.classList.toggle("hidden",!access?.owner);
   if (access) applyAccess(access);
   else {
     document.body.classList.remove("subscribed-studio");
