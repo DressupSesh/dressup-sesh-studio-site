@@ -166,6 +166,7 @@
 
   const pending=[], scheduled=new Set(), results=new Map();
   let workers=0;
+  const activeWorkflows={clean:0,copy:0,style:0};
   function paintProgress(p){
     const card=$('[data-id="'+p.id+'"]');if(!card)return;
     let box=card.querySelector('.job-progress');
@@ -178,7 +179,14 @@
       const row=card.querySelectorAll('.tool-row')[index];if(!row)continue;
       let meter=row.querySelector('progress');if(!meter){meter=document.createElement('progress');row.append(meter)}
       const tasks=Object.entries(p.progress||{}).filter(([slot])=>slot.startsWith(key+':'));
-      meter.max=tasks.length||1;meter.value=tasks.filter(([,j])=>j.state==='done').length;
+      const total=key==='clean'?Math.max(p.photoNames.length,tasks.length):1;
+      const completed=tasks.filter(([,j])=>j.state==='done').length;
+      meter.max=total||1;meter.value=completed;
+      if(key==='clean'){
+        let counter=row.querySelector('.photo-progress-count');
+        if(!counter){counter=document.createElement('span');counter.className='photo-progress-count';counter.style.cssText='font-size:11px;white-space:nowrap;margin-left:4px';row.append(counter)}
+        counter.textContent=total?completed+'/'+total:'';counter.setAttribute('aria-label',completed+' of '+total+' background removals complete');
+      }
       meter.setAttribute('aria-label',key+' progress');
       const errors=tasks.filter(([,job])=>job.state==='error').map(([,job])=>job.message);
       row.querySelector('.workflow-error')?.remove();
@@ -206,10 +214,13 @@
     save();pump();
   }
   function pump(){
-    while(workers<3&&pending.length){
-      workers++;
-      const task=pending.shift();
-      processTask(task).finally(()=>{workers--;scheduled.delete(task.token);pump()});
+    while(workers<4&&pending.length){
+      // Give each enabled workflow a slot before using spare slots for more photos.
+      let index=0;
+      for(let i=1;i<pending.length;i++)if(activeWorkflows[pending[i].key]<activeWorkflows[pending[index].key])index=i;
+      const task=pending.splice(index,1)[0];
+      workers++;activeWorkflows[task.key]++;
+      processTask(task).finally(()=>{workers--;activeWorkflows[task.key]--;scheduled.delete(task.token);pump()});
     }
   }
   async function processTask({p,ph,key,i,slot,token}){
