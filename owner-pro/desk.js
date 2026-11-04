@@ -96,8 +96,13 @@
   function fillDetails(p){
     fillBrand(p);
     const text=(p.title+'\n'+p.description).replace(/\*+/g,'');
-    const put=(key,value)=>{if(!String(p[key]||'').trim()&&value&&!/^(unknown|n\/a|not known)$/i.test(value))p[key]=value.trim()};
-    for(const key of ['brand','size','color','department','category']){
+    const put=(key,value)=>{
+      if(String(p[key]||'').trim()||!value||/^(unknown|n\/a|not known)$/i.test(value))return;
+      const allowed=key==='department'?Object.keys(C.taxonomy.departments):key==='category'?(C.taxonomy.departments[p.department]||[]):key==='size'?(C.taxonomy.sizes[p.category]||[]):null;
+      if(allowed){const match=allowed.find(option=>option.toLowerCase()===value.trim().toLowerCase());if(match)p[key]=match;}
+      else p[key]=value.trim();
+    };
+    for(const key of ['brand','color','department','category','size']){
       const re=new RegExp('^\\s*(?:[-•]\\s*)?(?:'+(key==='size'?'(?:tag )?size':key)+')\\s*:\\s*([^\\n]+)','im');
       put(key,text.match(re)?.[1]);
     }
@@ -108,6 +113,7 @@
       const matches=Object.entries(aliases).filter(([k,re])=>C.taxonomy.departments[p.department]?.includes(k)&&re.test(text));
       if(matches.length===1)put('category',matches[0][0]);
     }
+    put('size',text.match(/(?:tag )?size\s*:\s*([^\n]+)/i)?.[1]||text.match(/\bsize\s+(XXS|XS|XXL|XL|S|M|L|\d+(?:\.\d+)?)(?=\s|[,.;]|$)/i)?.[1]);
   }
   function startOver(p){
     if([...scheduled].some(token=>token.startsWith(p.id))){alert('Wait for this item’s processing to finish before starting over. Other items are still available.');return}
@@ -187,7 +193,7 @@
   function render(){
     $('#piece-grid').innerHTML=state.pieces.map(p=>{
       fillDetails(p);if(p.finalSaved&&C.issues(p,allPieces()).length){p.finalSaved=false;p.reviewed=false;}const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
-      return `<article class="piece-card ${p.reviewed?'piece-reviewed':''}" data-id="${p.id}"><div class="piece-head"><h2>${esc(p.title||'New piece')}</h2><label class="inline-label"><input type="checkbox" data-select ${selected.has(p.id)?'checked':''}> Select</label></div><div class="piece-top"><label class="piece-photo">${ph.products.length?`<img src="${esc(ph.products[0].url)}" alt="Original item photo"><span>${ph.products.length} photo${ph.products.length===1?'':'s'} · replace</span>`:'<span aria-hidden="true">＋</span><span>Add item photos</span>'}<input class="visually-hidden" type="file" data-photos="products" accept="image/jpeg,image/png,image/webp" multiple></label><div class="quick-fields">${field(p,'title','Item / working title',{max:80})}${field(p,'brand','Brand')}${field(p,'size','Size')}${field(p,'price','Listing price ($)',{type:'number'})}</div></div>${p.photoNames.length&&!ph.products.length?'<p class="field-note">Photo previews expired. Reattach photos for this session.</p>':''}<div class="piece-actions"><button class="small-btn" data-run="clean">Clean photo</button><button class="small-btn" data-run="copy">Write copy</button><button class="small-btn" data-run="style">Style piece</button></div><p class="piece-status" role="status">${p.reviewed?'Reviewed by you':'Draft · review the facts before export'}</p><details><summary>Copy & reference photos</summary><label>Reference type<select data-ref-kind><option>Brand tag</option><option>Composition tag</option><option>Measurements</option><option>Condition / flaw</option><option>Other details</option></select></label><label>Reference photos<input type="file" data-photos="refs" accept="image/jpeg,image/png,image/webp" multiple></label><div class="ref-strip">${ph.refs.map(f=>`<img src="${esc(f.url)}" alt="${esc(f.kind)} reference">`).join('')}</div><p>References guide the copy. They are excluded from product photo exports.</p>${field(p,'color','Color')}<label>Condition, measurements and notes<textarea data-field="notes" rows="3">${esc(p.notes)}</textarea></label><label>Description<textarea data-field="description" rows="5">${esc(p.description)}</textarea></label><button class="small-btn" data-template>Build draft from typed facts</button><p class="field-note">Template only. No photo analysis or AI in this preview.</p></details><details><summary>Catalog & Poshmark fields</summary><div class="quick-fields">${field(p,'sku','Unique SKU')}${field(p,'department','Department (official value)')}${field(p,'category','Category (official value)')}${field(p,'quantity','Quantity',{type:'number'})}${field(p,'cost','Purchase cost ($)',{type:'number'})}${field(p,'location','Storage location')}</div><p>Copy department, category and size exactly from the current template’s Taxonomy tab. Do not guess original retail price.</p></details><label class="inline-label"><input type="checkbox" data-reviewed ${p.reviewed?'checked':''}> I reviewed this piece’s details</label></article>`;
+      return `<article class="piece-card ${p.reviewed?'piece-reviewed':''}" data-id="${p.id}"><div class="piece-head"><h2>${esc(p.title||'New piece')}</h2><label class="inline-label"><input type="checkbox" data-select ${selected.has(p.id)?'checked':''}> Select</label></div><div class="piece-top"><label class="piece-photo">${ph.products.length?`<img src="${esc(ph.products[0].url)}" alt="Original item photo"><span>${ph.products.length} photo${ph.products.length===1?'':'s'} · replace</span>`:'<span aria-hidden="true">＋</span><span>Add item photos</span>'}<input class="visually-hidden" type="file" data-photos="products" accept="image/jpeg,image/png,image/webp" multiple></label><div class="quick-fields">${field(p,'title','Item / working title',{max:80})}${field(p,'brand','Brand')}${field(p,'size','Size')}${field(p,'price','Listing price ($)',{type:'number'})}</div></div>${p.originalsChecked&&p.missingOriginals?'<p class="field-note original-note">Original uploads unavailable on this device. Check Review for saved results. Reattach originals to run new processing.</p>':''}<div class="piece-actions"><button class="small-btn" data-run="clean">Clean photo</button><button class="small-btn" data-run="copy">Write copy</button><button class="small-btn" data-run="style">Style piece</button></div><p class="piece-status" role="status">${p.reviewed?'Reviewed by you':'Draft · review the facts before export'}</p><details><summary>Copy & reference photos</summary><label>Reference type<select data-ref-kind><option>Brand tag</option><option>Composition tag</option><option>Measurements</option><option>Condition / flaw</option><option>Other details</option></select></label><label>Reference photos<input type="file" data-photos="refs" accept="image/jpeg,image/png,image/webp" multiple></label><div class="ref-strip">${ph.refs.map(f=>`<img src="${esc(f.url)}" alt="${esc(f.kind)} reference">`).join('')}</div><p>References guide the copy. They are excluded from product photo exports.</p>${field(p,'color','Color')}<label>Condition, measurements and notes<textarea data-field="notes" rows="3">${esc(p.notes)}</textarea></label><label>Description<textarea data-field="description" rows="5">${esc(p.description)}</textarea></label><button class="small-btn" data-template>Build draft from typed facts</button><p class="field-note">Template only. No photo analysis or AI in this preview.</p></details><details><summary>Catalog & Poshmark fields</summary><div class="quick-fields">${field(p,'sku','Unique SKU')}${field(p,'department','Department (official value)')}${field(p,'category','Category (official value)')}${field(p,'quantity','Quantity',{type:'number'})}${field(p,'cost','Purchase cost ($)',{type:'number'})}${field(p,'location','Storage location')}</div><p>Copy department, category and size exactly from the current template’s Taxonomy tab. Do not guess original retail price.</p></details><label class="inline-label"><input type="checkbox" data-reviewed ${p.reviewed?'checked':''}> I reviewed this piece’s details</label></article>`;
     }).join('');
     layoutDesk();updateCount();renderCatalog();save();
   }
@@ -213,6 +219,10 @@
       fields.prepend(fields.querySelector('[data-field="brand"]').parentElement);
       fields.querySelector('[data-field="price"]').parentElement.hidden=true;
       fields.querySelector('[data-field="size"]').placeholder='Add size';
+      const titleInput=fields.querySelector('[data-field="title"]'),titleArea=document.createElement('textarea');
+      titleArea.dataset.field='title';titleArea.value=p.title;titleArea.rows=2;titleArea.maxLength=80;titleArea.setAttribute('aria-label','Item title');titleInput.replaceWith(titleArea);
+      const fitTitle=()=>{titleArea.style.height='auto';titleArea.style.height=Math.max(38,titleArea.scrollHeight)+'px'};titleArea.addEventListener('input',fitTitle);requestAnimationFrame(fitTitle);
+
       const controls=document.createElement('div');controls.className='desk-tools';
       const setup = [
         ['clean','Remove','background',['Standard','Keep edits']],
@@ -410,7 +420,7 @@
       const card=$('[data-id="'+p.id+'"]');
       if(card)for(const field of ['title','brand','size']){
         const input=card.querySelector('[data-field="'+field+'"]');
-        if(input && document.activeElement!==input)input.value=p[field];
+        if(input && document.activeElement!==input){input.value=p[field];if(input.tagName==='TEXTAREA'){input.style.height='auto';input.style.height=Math.max(38,input.scrollHeight)+'px'}}
       }
       
     }catch(e){p.progress[slot]={state:'error',message:label+' · '+e.message}}
@@ -451,7 +461,7 @@
           ph[key].push({file,name:file.name,url:photoURL(file),kind});
         }
         if(accepted.length){
-          sessionPhotos.set(p.id,ph);p[key==='products'?'photoNames':'referenceNames']=ph[key].map(f=>f.name);p.reviewed=false;p.finalSaved=false;
+          p.originalsChecked=true;p.missingOriginals=false;sessionPhotos.set(p.id,ph);p[key==='products'?'photoNames':'referenceNames']=ph[key].map(f=>f.name);p.reviewed=false;p.finalSaved=false;
           // Additional photos change the copy and creative inputs; preserve completed background results.
           for(const slot of key==='products'?['copy:0','style:0']:['copy:0']){if(p.jobs)delete p.jobs[slot];if(p.progress)delete p.progress[slot]}
           selected.add(p.id);save();render();
@@ -610,6 +620,10 @@
 .desk .piece-card .piece-photo img{display:block;width:100%;height:100%;position:absolute;inset:0;object-fit:contain;object-position:center}
 .desk .piece-photo:has(img)>span{display:none}.desk .piece-photo:has(img)::after{content:'+';position:absolute;right:4px;bottom:4px;background:white;border:1px solid #aaa;padding:0 5px;font-size:18px;line-height:24px}
 #add-skus{align-self:flex-start;margin:16px 0}.pro-dock{flex-wrap:wrap}.pro-dock button:disabled{opacity:.5}.pro-dock #bulk-save-status:not(:empty){width:100%;text-align:center;font-size:12px}
+
+.desk .piece-card{align-self:start;min-width:0}.desk .quick-fields label{display:grid;grid-template-columns:1fr;gap:3px;min-width:0}.desk .quick-fields input,.desk .quick-fields textarea{width:100%!important;margin:0;min-width:0;box-sizing:border-box}.desk .quick-fields textarea{padding:4px 5px;font:12px Arial;line-height:1.35;resize:vertical;overflow-wrap:anywhere;white-space:pre-wrap}
+.desk .tool-row{display:grid;grid-template-columns:minmax(0,1fr) 32px;gap:3px}.desk .tool-row label{min-width:0;white-space:nowrap}.desk .tool-row .studio-icon{width:32px!important;min-width:32px!important;padding:5px!important;height:36px}.desk .tool-row progress{width:100%;grid-column:1;max-width:none;margin:0;height:7px}.desk .tool-row>span{font-size:10px;white-space:nowrap}.desk .desk-tools{gap:5px}.desk .original-note{font-size:11px;line-height:1.4!important;margin:8px 0}.desk .job-progress{display:flex;flex-wrap:wrap;gap:4px}.desk .job-progress>p{flex-basis:100%;margin:6px 0}.desk .piece-photo img{padding:5px}
+@media(max-width:580px){.desk{padding:12px 10px}.desk .piece-grid{gap:10px}.desk .piece-card{padding:9px}.desk .piece-top{grid-template-columns:1fr}.desk .piece-card input:not([type=checkbox]),.desk .piece-card textarea,.desk .piece-card select{font-size:16px}.desk .quick-fields label{font-size:12px}.desk .sku input{width:76px;max-width:100%}.desk .sku-row{gap:5px}.desk .piece-photo{width:100%}.desk .piece-card details{margin-top:8px;padding-top:8px}.desk .piece-card summary{font-size:12px;margin-bottom:6px}#asset-review{padding:16px}#asset-review h1{font-size:36px}#listing-details{min-width:0}#listing-details label{display:block;margin:10px 0}#listing-details select{width:100%;min-width:0;font-size:16px}}
 `;document.head.append(selectionStyle);
   async function restorePhotos(p){
     const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
@@ -626,14 +640,15 @@
       const asset=await assetStore(p.id+':reference:'+i);if(asset)ph.refs.push({file:asset.blob,name:p.referenceNames[i],url:photoURL(asset.blob),kind:'Reference'});
     }
     if(ph.products.length||ph.refs.length)sessionPhotos.set(p.id,ph);
+    p.originalsChecked=true;p.missingOriginals=ph.products.length<p.photoNames.length;
     return ph;
   }
   const thumbCache=new Map();
   async function paintThumbnail(p){
-    if(!p.assets?.['clean:0'])return;
     let url=thumbCache.get(p.id);
     if(!url){
-      const asset=await assetStore(p.id+':clean:0');if(!asset)return;
+      const final=await assetStore(p.id+':final');
+      const asset=await assetStore(p.id+':clean:0')||final?.assets?.find(a=>a.key==='clean:0')||final?.assets?.[0];if(!asset)return;
       url=photoURL(await whitePhoto(asset.blob));thumbCache.set(p.id,url);
     }
     const photo=$('[data-id="'+p.id+'"] .piece-photo');if(!photo)return;
@@ -677,8 +692,8 @@
         const wrap=document.createElement('label');wrap.textContent=label;
         const options=key==='department'?Object.keys(C.taxonomy.departments):key==='category'?(C.taxonomy.departments[p.department]||[]):key==='size'?(C.taxonomy.sizes[p.category]||[]):null;
         const input=document.createElement(options?'select':'input');input.id='detail-'+key;
-        if(options){const values=['',...options];if(p[key]&&!values.includes(String(p[key])))values.push(String(p[key]));for(const value of values){const option=document.createElement('option');option.value=value;option.textContent=value||'Choose '+label.toLowerCase();input.append(option)}}
-        input.value=p[key]||'';input.onchange=()=>{p[key]=input.value;$('#confirm-details').checked=false;invalidate();showDetails();checkDetails()};wrap.append(input);details.append(wrap);
+        if(options){const values=['',...options];for(const value of values){const option=document.createElement('option');option.value=value;option.textContent=value||(key==='category'&&!p.department?'Choose department first':key==='size'&&!p.category?'Choose category first':'Choose '+label.toLowerCase());input.append(option)}}
+        input.value=options&&!options.includes(String(p[key]))?'':p[key]||'';input.onchange=()=>{p[key]=input.value;if(key==='department'&&!C.taxonomy.departments[p.department]?.includes(p.category)){p.category='';p.size='';}if(key==='category'&&!C.taxonomy.sizes[p.category]?.includes(String(p.size)))p.size='';$('#confirm-details').checked=false;invalidate();showDetails();checkDetails()};wrap.append(input);details.append(wrap);
       }
     };
     const checkDetails=()=>{
@@ -706,7 +721,7 @@
     };
     const upsertPhoto=async(key)=>{
       if(key.startsWith('reference:')||p.deletedAssets?.[key])return;
-      const asset=await assetStore(p.id+':'+key);if(ticket!==reviewTicket||!asset)return;
+      const asset=await assetStore(p.id+':'+key)||savedFinal?.assets?.find(a=>a.key===key);if(ticket!==reviewTicket||!asset)return;
       if(entries.has(key)){
         const entry=entries.get(key);Object.assign(entry.asset,asset);entry.img.src=photoURL(asset.blob);if(entry.check.checked)chosen.set(key,entry.asset);entry.undo.disabled=!(await assetStore(p.id+':undo:'+key));updateTask(key);return;
       }
@@ -752,7 +767,7 @@
         if($('#review-title').value!==p.title)$('#review-title').value=p.title;if($('#review-copy').value!==p.description)$('#review-copy').value=p.description;growTitle();showDetails();checkDetails();$('#confirm-details').checked=false;
       }
     },{signal:reviewEvents.signal});
-    for(const key of Object.keys(p.assets||{}).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})))await upsertPhoto(key);
+    for(const key of [...new Set([...Object.keys(p.assets||{}),...(savedFinal?.assets||[]).map(a=>a.key).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})))await upsertPhoto(key);
     if(ticket!==reviewTicket)return;
     setIcon($('#retry-copy'),'retry','Regenerate copy with current references');
     $('#retry-copy').onclick=async()=>{
