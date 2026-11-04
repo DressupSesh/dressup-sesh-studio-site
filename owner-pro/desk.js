@@ -306,7 +306,7 @@
       listingFields.querySelector('summary').textContent='Listing details';
       listingFields.querySelector('.quick-fields').append(priceLabel);
       for(const key of ['color','color2']){const label=card.querySelector('[data-field="'+key+'"]').parentElement;listingFields.querySelector('.quick-fields').append(label);}
-      card.querySelector('.quick-fields').style.display='none';listingFields.style.display='none';
+      const listingBody=listingFields.querySelector('.quick-fields');for(const label of [...fields.children])listingBody.append(label);fields.remove();listingFields.open=false;
       card.onclick=()=>{focusId=p.id;grid.querySelectorAll('.current').forEach(c=>c.classList.remove('current'));card.classList.add('current');updateCount();showReview(p)};
     });
     state.pieces.forEach(paintProgress);
