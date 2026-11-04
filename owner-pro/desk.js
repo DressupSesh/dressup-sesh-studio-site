@@ -173,25 +173,19 @@
     const list=Object.values(p.progress||{}), done=list.filter(j=>j.state==='done').length;
     box.replaceChildren();
     if(!list.length&&!C.active(p))return;
-    const text=document.createElement('p');text.textContent=list.length&&done===list.length?'● Ready to review':done+' / '+list.length+' complete';
-    text.style.color=done===list.length?'#28743b':'inherit';box.append(text);
+    const text=document.createElement('p');text.textContent='● Ready to review';text.style.color='#28743b';if(done)box.append(text);
     for(const [index,key] of ['clean','copy','style'].entries()){
       const row=card.querySelectorAll('.tool-row')[index];if(!row)continue;
       let meter=row.querySelector('progress');if(!meter){meter=document.createElement('progress');row.append(meter)}
       const tasks=Object.entries(p.progress||{}).filter(([slot])=>slot.startsWith(key+':'));
       meter.max=tasks.length||1;meter.value=tasks.filter(([,j])=>j.state==='done').length;
       meter.setAttribute('aria-label',key+' progress');
+      const errors=tasks.filter(([,job])=>job.state==='error').map(([,job])=>job.message);
+      row.querySelector('.workflow-error')?.remove();
+      if(errors.length){const issue=document.createElement('button');issue.className='workflow-error';issue.textContent='!';issue.setAttribute('aria-label',key+' needs attention');issue.onclick=e=>{e.stopPropagation();alert(errors.join('\n'))};row.append(issue)}
     }
-    const missing=['clean','copy','style'].filter(key=>p[key]).some(key=>{
-      const count=key==='clean'?Math.max(1,p.photoNames.length):1;
-      return Array.from({length:count},(_,i)=>key+':'+i).some(slot=>!p.jobs?.[slot]?.complete);
-    });
-    if(missing&&done){text.textContent='● Results ready · workflows remaining';text.style.color='#28743b'}
     const reset=document.createElement('button');reset.textContent='Start over';reset.onclick=e=>{e.stopPropagation();startOver(p)};
     const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton,reset);
-    for(const item of Object.values(p.progress||{}).filter(x=>x.state==='error')){
-      const line=document.createElement('p');line.textContent=item.message;box.append(line);
-    }
     card.querySelectorAll('[data-photos]').forEach(input=>input.disabled=list.some(x=>x.state==='running'||x.state==='queued'));
   }
   async function runLive(){
