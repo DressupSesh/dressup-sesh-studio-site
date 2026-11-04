@@ -86,7 +86,12 @@
     grid.querySelectorAll('.piece-card').forEach((card,i)=>{
       const p=state.pieces[i],photo=card.querySelector('.piece-photo');
       const sku=card.querySelector('[data-field="sku"]').parentElement;
-      sku.firstChild.textContent='SKU ';card.prepend(sku);sku.className='sku';
+      sku.firstChild.textContent='SKU ';sku.className='sku';
+      const skuRow=document.createElement('div');skuRow.className='sku-row';
+      const selection=card.querySelector('[data-select]').parentElement;
+      selection.className='sku-selection';selection.lastChild.textContent=' Select';
+      selection.querySelector('input').setAttribute('aria-label','Select SKU '+p.sku);
+      skuRow.append(sku,selection);card.prepend(skuRow);
       if(Number.isInteger(p.sample)&&!sessionPhotos.get(p.id)?.products.length){
         photo.querySelectorAll('span').forEach(x=>x.remove());
         const im=new Image();im.src='piece-'+p.sample+'.png';im.alt=p.title;photo.prepend(im);
@@ -166,8 +171,9 @@
     card.querySelectorAll('[data-photos]').forEach(input=>input.disabled=list.some(x=>x.state==='running'||x.state==='queued'));
   }
   async function runLive(){
+    if(!state.pieces.some(p=>C.active(p)&&selected.has(p.id))){alert('Select one or more SKUs first.');return}
     try{await ownerSession()}catch(e){alert(e.message);return}
-    for(const p of state.pieces.filter(C.active)){
+    for(const p of state.pieces.filter(p=>C.active(p)&&selected.has(p.id))){
       const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
       for(const key of ['clean','copy','style'].filter(k=>p[k])){
         const slots=key==='clean'?Array.from({length:Math.max(1,p.photoNames.length)},(_,i)=>i):[0];
@@ -283,7 +289,10 @@
   }
   $('#run-desk').onclick=runLive;
   $('#export-desk').onclick=()=>{save();$('[data-view="export"]').click()};
-  function updateCount(){const a=state.pieces.filter(C.active);$('#batch-count').textContent=`${a.length}/10 pieces · ${selected.size} selected · batch ${state.batch}`;$('#select-all').checked=a.length>0&&a.every(p=>selected.has(p.id));}
+  function updateCount(){const a=state.pieces.filter(C.active);
+    const count=a.filter(p=>selected.has(p.id)).length;
+    for(const id of ['run-desk','run-floating','save-selected']){const button=$('#'+id);if(button){button.textContent=(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':'');button.disabled=!count}}
+    for(const card of $$('#piece-grid .piece-card'))card.classList.toggle('batch-selected',selected.has(card.dataset.id));$('#batch-count').textContent=`${a.length}/10 pieces · ${selected.size} selected · batch ${state.batch}`;$('#select-all').checked=a.length>0&&a.every(p=>selected.has(p.id));}
   function renderCatalog(){
     const a=allPieces();$('#catalog-table tbody').innerHTML=a.length?a.map(p=>`<tr><td>${esc(p.sku)}</td><td>${esc(p.title||'Untitled')} ${state.archive.some(x=>x.id===p.id)?`<button class="small-btn" data-restore="${p.id}">Edit piece</button>`:''}</td><td>${esc([p.brand,p.size].filter(Boolean).join(' / '))}</td><td>${p.price?esc('$'+p.price):'—'}</td><td>${esc(p.location||'—')}</td><td>${p.reviewed?'Reviewed':'Needs review'}</td><td>${p.batch||state.batch}</td></tr>`).join(''):'<tr><td colspan="7">Add a piece or load samples to start your catalog.</td></tr>';
   }
@@ -447,6 +456,15 @@
   }
   const reviewStyle=document.createElement('style');
   reviewStyle.textContent='#asset-grid img,.piece-photo img,.photo-editor canvas{background:#fff}.review-quick-save{display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:0;background:#f8f6f1;padding:12px 0;z-index:3}.photo-actions{display:flex;flex-wrap:wrap;gap:8px}';document.head.append(reviewStyle);
+  const selectionStyle=document.createElement('style');selectionStyle.textContent=`
+.desk .sku-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px}
+.desk .piece-card .sku-selection{display:flex!important;align-items:center;gap:4px;font-size:11px}
+.desk .sku-selection input{width:18px;height:18px}.desk .batch-selected{border-color:#393835;box-shadow:inset 0 0 0 1px #393835}
+.desk .piece-card .piece-photo{position:relative;display:flex;aspect-ratio:1/1;width:100%;height:auto!important;min-height:0;padding:0;gap:0;background:white;align-items:center;justify-content:center}
+.desk .piece-card .piece-photo img{display:block;width:100%;height:100%;position:absolute;inset:0;object-fit:contain;object-position:center}
+.desk .piece-photo:has(img)>span{display:none}.desk .piece-photo:has(img)::after{content:'+';position:absolute;right:4px;bottom:4px;background:white;border:1px solid #aaa;padding:0 5px;font-size:18px;line-height:24px}
+#add-skus{align-self:flex-start;margin:16px 0}.pro-dock{flex-wrap:wrap}.pro-dock button:disabled{opacity:.5}.pro-dock #bulk-save-status:not(:empty){width:100%;text-align:center;font-size:12px}
+`;document.head.append(selectionStyle);
   const thumbCache=new Map();
   async function paintThumbnail(p){
     if(!p.assets?.['clean:0'])return;
@@ -591,10 +609,27 @@
   }
   window.addEventListener('hashchange',()=>openReview().catch(console.error));
   const dock=document.createElement('div');dock.className='pro-dock';
-  dock.innerHTML='<button type="button" id="add-skus">+ 10 SKUs</button><button type="button" id="run-floating">Run selected</button>';
+  dock.innerHTML='<button type="button" id="save-selected">Save selected</button><button type="button" id="run-floating">Run selected</button><span id="bulk-save-status" role="status"></span>';
+  const addSkus=document.createElement('button');addSkus.type='button';addSkus.id='add-skus';addSkus.textContent='+ 10 SKUs';$('#piece-grid').after(addSkus);
   document.body.append(dock);
   $('#add-skus').onclick=()=>{state.pieces.push(...Array.from({length:10},makePiece));render()};
   $('#run-floating').onclick=runLive;
+  $('#save-selected').onclick=async()=>{
+    const items=state.pieces.filter(p=>C.active(p)&&selected.has(p.id)),status=$('#bulk-save-status');
+    $('#save-selected').disabled=true;let saved=0;
+    try{
+      for(const p of items){
+        if(Object.values(p.progress||{}).some(job=>['running','queued'].includes(job.state)))continue;
+        const keys=p.finalKeys||Object.keys(p.assets||{}),assets=[];
+        for(const key of keys){const asset=await assetStore(p.id+':'+key);if(asset)assets.push({...asset,blob:await whitePhoto(asset.blob)})}
+        if(!assets.length)continue;
+        await assetStore(p.id+':final',{title:p.title,description:p.description,assets});
+        p.finalKeys=assets.map(asset=>asset.key);p.finalSaved=true;saved++;
+      }
+      save();status.textContent=saved+' item'+(saved===1?'':'s')+' saved.'+(saved<items.length?' Processing items or items without photos were skipped.':'');
+    }catch(e){status.textContent='Could not finish saving: '+e.message}
+    finally{updateCount()}
+  };
   render();
   for(const p of state.pieces){
     p.progress={};
