@@ -172,6 +172,7 @@
     edit:'<path d="m4 16 12-12 4 4L8 20H4Zm10-10 4 4"/>',
     undo:'<path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12"/>',
     trash:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
+    restart:'<path d="M20 7V2m0 5h-5M4 17v5m0-5h5M20 7a9 9 0 0 0-15-2M4 17a9 9 0 0 0 15 2M9 9l6 6m0-6-6 6"/>',
     retry:'<path d="M20 7V2m0 5h-5M4 17v5m0-5h5M20 7a9 9 0 0 0-15-2M4 17a9 9 0 0 0 15 2"/>',
     archive:'<path d="M3 3h18v5H3Zm2 5v13h14V8M9 12h6"/>',
     review:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
@@ -189,7 +190,7 @@
     for(const b of document.querySelectorAll('.desk button,#asset-review button,.pro-dock button,.photo-editor button')){
       if(b.querySelector('svg'))continue;
       const label=b.getAttribute('aria-label')||b.textContent.trim()||b.title||'Options';
-      const key=/options/i.test(label)?'chevron':/poshmark/i.test(label)?'posh':/copy/i.test(label)?'copy':/phone|share/i.test(label)?'phone':/zip|computer/i.test(label)?'desktop':/download|export/i.test(label)?'export':/save/i.test(label)?'save':/run/i.test(label)?'play':/archive|inventory/i.test(label)?'archive':/undo/i.test(label)?'undo':/retry|regenerate|start over|reset/i.test(label)?'retry':/delete/i.test(label)?'trash':/edit/i.test(label)?'edit':/review/i.test(label)?'review':/cancel|close/i.test(label)?'close':/add|\+ 10/i.test(label)?'add':/←|back/i.test(label)?'back':/studio/i.test(label)?'grid':'info';
+      const key=/options/i.test(label)?'chevron':/poshmark/i.test(label)?'posh':/copy/i.test(label)?'copy':/phone|share/i.test(label)?'phone':/zip|computer/i.test(label)?'desktop':/download|export/i.test(label)?'export':/save/i.test(label)?'save':/run/i.test(label)?'play':/archive|inventory/i.test(label)?'archive':/undo/i.test(label)?'undo':/start over|reset/i.test(label)?'restart':/retry|regenerate/i.test(label)?'retry':/delete/i.test(label)?'trash':/edit/i.test(label)?'edit':/review/i.test(label)?'review':/cancel|close/i.test(label)?'close':/add|\+ 10/i.test(label)?'add':/←|back/i.test(label)?'back':/studio/i.test(label)?'grid':'info';
       setIcon(b,key,label);
     }
   }
@@ -323,7 +324,7 @@
       const issues=C.saveIssues({...p,reviewed:true},allPieces());
       if(issues.length){reviewUrl(p);alert('Complete these details before saving: '+issues.join('; '));return;}
       const previous=await assetStore(p.id+':final');
-      const keys=(p.finalKeys||Object.keys(p.assets||{})).filter(key=>!key.startsWith('reference:')&&!p.deletedAssets?.[key]);
+      const keys=(p.finalKeys||Object.keys(p.assets||{}).filter(key=>!key.startsWith('original:'))).filter(key=>!key.startsWith('reference:')&&!p.deletedAssets?.[key]);
       if(!keys.length||keys.length>16){reviewUrl(p);alert('Select between 1 and 16 photos in Review before saving.');return;}
       if(!p.reviewed&&!confirm('Save SKU '+p.sku+'? Confirm you have reviewed its listing details and selected photos.'))return;
       const assets=[];
@@ -812,7 +813,7 @@
         const entry=entries.get(key);Object.assign(entry.asset,asset);entry.img.src=photoURL(asset.blob);if(entry.check.checked)chosen.set(key,entry.asset);entry.undo.disabled=!(await assetStore(p.id+':undo:'+key));updateTask(key);return;
       }
       const box=document.createElement('article'),check=document.createElement('input'),label=document.createElement('label'),img=new Image();
-      check.type='checkbox';check.checked=p.finalKeys?p.finalKeys.includes(key):true;check.setAttribute('aria-label','Include '+asset.label);
+      check.type='checkbox';check.checked=p.finalKeys?p.finalKeys.includes(key):!key.startsWith('original:');check.setAttribute('aria-label','Include '+asset.label);
       label.append(check,document.createTextNode(' '+asset.label));img.src=photoURL(asset.blob);img.alt=asset.label;
       const badge=document.createElement('span');badge.className='photo-selected-badge';badge.textContent='✓';badge.setAttribute('aria-hidden','true');
       const actions=document.createElement('div');actions.className='photo-actions';
@@ -961,7 +962,7 @@
       for(const p of items){
         if(Object.values(p.progress||{}).some(job=>['running','queued'].includes(job.state)))continue;
         if(C.saveIssues(p,allPieces()).length)continue;
-        const keys=p.finalKeys||Object.keys(p.assets||{}).filter(key=>!key.startsWith('reference:')),assets=[];
+        const keys=p.finalKeys||Object.keys(p.assets||{}).filter(key=>!key.startsWith('reference:')&&!key.startsWith('original:')),assets=[];
         for(const key of keys){const asset=await assetStore(p.id+':'+key);if(asset)assets.push({...asset,blob:await whitePhoto(asset.blob)})}
         if(!assets.length||assets.length>16)continue;
         await assetStore(p.id+':final',{title:p.title,description:p.description,price:p.price,assets});
