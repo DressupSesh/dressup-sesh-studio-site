@@ -13,7 +13,7 @@ async function startOwnerDesk(){
   ownerClient.auth.onAuthStateChange((event,current)=>{
     if(!current || current.user.id!==ownerId)location.replace('/studio.html');
   });
-  const script=document.createElement('script');script.src='desk.js?v=item-review';
+  const script=document.createElement('script');script.src='desk.js?v=phone-handoff';
   script.onload=()=>{document.querySelector('#main').hidden=false;document.querySelector('#gate').hidden=true;};
   document.body.append(script);
 }
