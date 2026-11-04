@@ -71,12 +71,30 @@
     }
   }
   let focusId=state.pieces[0].id;
-  function save(){try{state.nextSku=nextSku-1;localStorage.setItem(KEY,JSON.stringify(state));$('#saved-status').textContent='Text saved on this device · photos are session only';}catch{$('#saved-status').textContent='Device storage unavailable. Download a catalog backup before leaving.';}}
+  function save(){try{state.nextSku=nextSku-1;localStorage.setItem(KEY,JSON.stringify(state));$('#saved-status').textContent='Saved on this device';}catch{$('#saved-status').textContent='Device storage unavailable. Download a catalog backup before leaving.';}}
   const allPieces=()=>[...state.archive,...state.pieces.filter(C.active)];
   function field(p,key,label,options={}){const type=options.type||'text';return `<label>${label}<input data-field="${key}" type="${type}" value="${esc(p[key])}" ${options.max?'maxlength="'+options.max+'"':''} ${type==='number'?'min="0" step="'+(key==='quantity'?'1':'0.01')+'"':''}></label>`;}
+  function fillBrand(p){
+    if(p.brand?.trim())return;
+    const text=(p.title+'\n'+p.description).replace(/\*+/g,'');
+    const explicit=text.match(/^\s*(?:[-•]\s*)?(?:brand|designer)\s*:\s*([^\n]+)/im);
+    if(explicit&&!/^(unknown|n\/a|not\b)/i.test(explicit[1])){p.brand=explicit[1].trim();return}
+    const known=[...state.pieces,...state.archive].map(x=>x.brand).filter(Boolean).concat(['Linda Allard Ellen Tracy','Ellen Tracy','AllSaints','Levi’s',"Levi's",'J.Crew','Reformation','Everlane','Madewell','Loeffler Randall','Gianvito Rossi','Paul Green']);
+    for(const brand of [...new Set(known)].sort((a,b)=>b.length-a.length)){
+      const escaped=brand.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      if(new RegExp('^'+escaped+'(?=\\s|[,:—-]|$)','i').test(p.title.trim())&&new RegExp('(?:^|\\W)'+escaped+'(?=\\W|$)','i').test(p.description)){p.brand=brand;return}
+    }
+  }
+  function startOver(p){
+    if([...scheduled].some(token=>token.startsWith(p.id))){alert('Wait for this item’s processing to finish before starting over. Other items are still available.');return}
+    if(!confirm('Start over SKU '+p.sku+'? This clears this item’s photos, copy, edits and saved listing. Its SKU stays the same.'))return;
+    const replacement=makePiece();nextSku--;replacement.sku=p.sku;
+    const index=state.pieces.findIndex(x=>x.id===p.id);if(index<0)return;
+    state.pieces[index]=replacement;selected.delete(p.id);sessionPhotos.delete(p.id);thumbCache.delete(p.id);focusId=replacement.id;render();
+  }
   function render(){
     $('#piece-grid').innerHTML=state.pieces.map(p=>{
-      const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
+      fillBrand(p);const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
       return `<article class="piece-card ${p.reviewed?'piece-reviewed':''}" data-id="${p.id}"><div class="piece-head"><h2>${esc(p.title||'New piece')}</h2><label class="inline-label"><input type="checkbox" data-select ${selected.has(p.id)?'checked':''}> Select</label></div><div class="piece-top"><label class="piece-photo">${ph.products.length?`<img src="${esc(ph.products[0].url)}" alt="Original item photo"><span>${ph.products.length} photo${ph.products.length===1?'':'s'} · replace</span>`:'<span aria-hidden="true">＋</span><span>Add item photos</span>'}<input class="visually-hidden" type="file" data-photos="products" accept="image/jpeg,image/png,image/webp" multiple></label><div class="quick-fields">${field(p,'title','Item / working title',{max:80})}${field(p,'brand','Brand')}${field(p,'size','Size')}${field(p,'price','Listing price ($)',{type:'number'})}</div></div>${p.photoNames.length&&!ph.products.length?'<p class="field-note">Photo previews expired. Reattach photos for this session.</p>':''}<div class="piece-actions"><button class="small-btn" data-run="clean">Clean photo</button><button class="small-btn" data-run="copy">Write copy</button><button class="small-btn" data-run="style">Style piece</button></div><p class="piece-status" role="status">${p.reviewed?'Reviewed by you':'Draft · review the facts before export'}</p><details><summary>Copy & reference photos</summary><label>Reference type<select data-ref-kind><option>Brand tag</option><option>Composition tag</option><option>Measurements</option><option>Condition / flaw</option><option>Other details</option></select></label><label>Reference photos<input type="file" data-photos="refs" accept="image/jpeg,image/png,image/webp" multiple></label><div class="ref-strip">${ph.refs.map(f=>`<img src="${esc(f.url)}" alt="${esc(f.kind)} reference">`).join('')}</div><p>References guide the copy. They are excluded from product photo exports.</p>${field(p,'color','Color')}<label>Condition, measurements and notes<textarea data-field="notes" rows="3">${esc(p.notes)}</textarea></label><label>Description<textarea data-field="description" rows="5">${esc(p.description)}</textarea></label><button class="small-btn" data-template>Build draft from typed facts</button><p class="field-note">Template only. No photo analysis or AI in this preview.</p></details><details><summary>Catalog & Poshmark fields</summary><div class="quick-fields">${field(p,'sku','Unique SKU')}${field(p,'department','Department (official value)')}${field(p,'category','Category (official value)')}${field(p,'quantity','Quantity',{type:'number'})}${field(p,'cost','Purchase cost ($)',{type:'number'})}${field(p,'location','Storage location')}</div><p>Copy department, category and size exactly from the current template’s Taxonomy tab. Do not guess original retail price.</p></details><label class="inline-label"><input type="checkbox" data-reviewed ${p.reviewed?'checked':''}> I reviewed this piece’s details</label></article>`;
     }).join('');
     layoutDesk();updateCount();renderCatalog();save();
@@ -114,7 +132,7 @@
         row.innerHTML='<label><input type="checkbox"> '+label+'</label><button type="button" aria-expanded="false">⌄</button>';
         const check=row.querySelector('input'), arrow=row.querySelector('button');
         check.checked=!!p[key];
-        check.onchange=()=>{p[key]=check.checked;save()};
+        check.onchange=()=>{p[key]=check.checked;if(check.checked){selected.add(p.id);card.querySelector('[data-select]').checked=true}updateCount();paintProgress(p);save()};
         arrow.setAttribute('aria-label',label+' options for '+p.sku);
         let panel;
         if(setting){
@@ -164,7 +182,13 @@
       meter.max=tasks.length||1;meter.value=tasks.filter(([,j])=>j.state==='done').length;
       meter.setAttribute('aria-label',key+' progress');
     }
-    const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton);
+    const missing=['clean','copy','style'].filter(key=>p[key]).some(key=>{
+      const count=key==='clean'?Math.max(1,p.photoNames.length):1;
+      return Array.from({length:count},(_,i)=>key+':'+i).some(slot=>!p.jobs?.[slot]?.complete);
+    });
+    if(missing&&done){text.textContent='● Results ready · workflows remaining';text.style.color='#28743b'}
+    const reset=document.createElement('button');reset.textContent='Start over';reset.onclick=e=>{e.stopPropagation();startOver(p)};
+    const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton,reset);
     for(const item of Object.values(p.progress||{}).filter(x=>x.state==='error')){
       const line=document.createElement('p');line.textContent=item.message;box.append(line);
     }
@@ -174,7 +198,7 @@
     if(!state.pieces.some(p=>C.active(p)&&selected.has(p.id))){alert('Select one or more SKUs first.');return}
     try{await ownerSession()}catch(e){alert(e.message);return}
     for(const p of state.pieces.filter(p=>C.active(p)&&selected.has(p.id))){
-      const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
+      const ph=await restorePhotos(p);
       for(const key of ['clean','copy','style'].filter(k=>p[k])){
         const slots=key==='clean'?Array.from({length:Math.max(1,p.photoNames.length)},(_,i)=>i):[0];
         for(const i of slots){
@@ -264,7 +288,7 @@
               }
               if(job.titleBefore!==undefined&&priorTitle!==job.titleBefore)p.title=priorTitle;
               if(job.descriptionBefore!==undefined&&priorDescription!==job.descriptionBefore)p.description=priorDescription;
-              job.applied=true;p.reviewed=false;
+              fillBrand(p);job.applied=true;p.reviewed=false;
             }
             line.textContent=label+' — ready to review';
           }else{
@@ -291,7 +315,7 @@
   $('#export-desk').onclick=()=>{save();$('[data-view="export"]').click()};
   function updateCount(){const a=state.pieces.filter(C.active);
     const count=a.filter(p=>selected.has(p.id)).length;
-    for(const id of ['run-desk','run-floating','save-selected']){const button=$('#'+id);if(button){button.textContent=(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':'');button.disabled=!count}}
+    for(const id of ['run-desk','run-floating','save-selected']){const button=$('#'+id);if(button){button.textContent=(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':'');button.disabled=!count;button.title=count?'':'Check Select beside one or more SKUs'}}
     for(const card of $$('#piece-grid .piece-card'))card.classList.toggle('batch-selected',selected.has(card.dataset.id));$('#batch-count').textContent=`${a.length}/10 pieces · ${selected.size} selected · batch ${state.batch}`;$('#select-all').checked=a.length>0&&a.every(p=>selected.has(p.id));}
   function renderCatalog(){
     const a=allPieces();$('#catalog-table tbody').innerHTML=a.length?a.map(p=>`<tr><td>${esc(p.sku)}</td><td>${esc(p.title||'Untitled')} ${state.archive.some(x=>x.id===p.id)?`<button class="small-btn" data-restore="${p.id}">Edit piece</button>`:''}</td><td>${esc([p.brand,p.size].filter(Boolean).join(' / '))}</td><td>${p.price?esc('$'+p.price):'—'}</td><td>${esc(p.location||'—')}</td><td>${p.reviewed?'Reviewed':'Needs review'}</td><td>${p.batch||state.batch}</td></tr>`).join(''):'<tr><td colspan="7">Add a piece or load samples to start your catalog.</td></tr>';
@@ -465,6 +489,19 @@
 .desk .piece-photo:has(img)>span{display:none}.desk .piece-photo:has(img)::after{content:'+';position:absolute;right:4px;bottom:4px;background:white;border:1px solid #aaa;padding:0 5px;font-size:18px;line-height:24px}
 #add-skus{align-self:flex-start;margin:16px 0}.pro-dock{flex-wrap:wrap}.pro-dock button:disabled{opacity:.5}.pro-dock #bulk-save-status:not(:empty){width:100%;text-align:center;font-size:12px}
 `;document.head.append(selectionStyle);
+  async function restorePhotos(p){
+    const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
+    if(!ph.products.length){
+      for(let i=0;i<p.photoNames.length;i++){
+        const asset=await assetStore(p.id+':original:'+i);
+        if(!asset)break;
+        ph.products.push({file:asset.blob,name:p.photoNames[i],url:photoURL(asset.blob),kind:'Product'});
+      }
+      if(ph.products.length!==p.photoNames.length)ph.products=[];
+      if(ph.products.length)sessionPhotos.set(p.id,ph);
+    }
+    return ph;
+  }
   const thumbCache=new Map();
   async function paintThumbnail(p){
     if(!p.assets?.['clean:0'])return;
@@ -642,5 +679,5 @@
     paintProgress(p);
   }
   pump();
-  openReview().catch(console.error);
+  Promise.all(state.pieces.map(restorePhotos)).then(()=>{render();return openReview()}).catch(console.error);
 })();
