@@ -62,7 +62,7 @@
   const makePiece=()=>Object.fromEntries([['id',uid()],...C.fields.map(k=>[k,k==='quantity'?'1':k==='sku'?String(nextSku++).padStart(4,'0'):'']),['reviewed',false],['photoNames',[]],['referenceNames',[]]]);
   const fresh=()=>({batch:1,pieces:Array.from({length:10},makePiece),archive:[]});
   let state;
-  try{const s=JSON.parse(localStorage.getItem(KEY));state=s&&Array.isArray(s.pieces)&&s.pieces.length===10&&s.pieces.every(p=>p.id&&typeof p.title==='string')&&Array.isArray(s.archive)?s:fresh();}catch{state=fresh();}
+  try{const s=JSON.parse(localStorage.getItem(KEY));state=s&&Array.isArray(s.pieces)&&s.pieces.length>=10&&s.pieces.every(p=>p.id&&typeof p.title==='string')&&Array.isArray(s.archive)?s:fresh();}catch{state=fresh();}
   nextSku=Math.max(0,...[...state.archive,...state.pieces].map(p=>/^\d{1,9}$/.test(p.sku)?Number(p.sku):0),state.nextSku||0)+1;
   // Replace only unused slots created by the original random SKU generator.
   for(const piece of state.pieces){
@@ -135,35 +135,66 @@
       listingFields.querySelector('summary').textContent='Listing details';
       card.onclick=()=>{focusId=p.id;grid.querySelectorAll('.current').forEach(c=>c.classList.remove('current'));card.classList.add('current');showReview(p)};
     });
+    state.pieces.forEach(paintProgress);
     showReview(state.pieces.find(p=>p.id===focusId)||state.pieces[0]);
   }
   function showReview(p){
     const drawer=$('#review-piece');
     drawer.innerHTML='<strong>REVIEW ITEM — SKU '+esc(p.sku)+'</strong><label>Title<input id="edit-title"></label><label>Description<textarea id="edit-description"></textarea></label><button id="save-piece">Save changes</button>';
     $('#edit-title').value=p.title;$('#edit-description').value=p.description;
+    for(const field of ['title','description'])$('#edit-'+field).oninput=e=>{p[field]=e.target.value;p.reviewed=false;save()};
     $('#save-piece').onclick=()=>{p.title=$('#edit-title').value;p.description=$('#edit-description').value;p.reviewed=true;render()};
   }
+
+  const pending=[], scheduled=new Set(), results=new Map();
+  let workers=0;
+  function paintProgress(p){
+    const card=$('[data-id="'+p.id+'"]');if(!card)return;
+    let box=card.querySelector('.job-progress');
+    if(!box){box=document.createElement('div');box.className='job-progress';card.append(box)}
+    const list=Object.values(p.progress||{}), done=list.filter(j=>j.state==='done').length;
+    box.replaceChildren();
+    if(!list.length)return;
+    const text=document.createElement('p');text.textContent=done===list.length?'● Ready to review':done+' / '+list.length+' complete';
+    text.style.color=done===list.length?'#28743b':'inherit';box.append(text);
+    const bar=document.createElement('progress');bar.max=list.length;bar.value=done;box.append(bar);
+    for(const [slot,item] of Object.entries(p.progress)){
+      const line=document.createElement('p');line.textContent=item.message;box.append(line);
+      const output=results.get(p.id+slot);if(output)line.append(output);
+    }
+    card.querySelectorAll('[data-photos]').forEach(input=>input.disabled=list.some(x=>x.state==='running'||x.state==='queued'));
+  }
   async function runLive(){
-    const button=$('#run-desk'), log=$('#queue-content');
-    const work=[];
+    try{await ownerSession()}catch(e){alert(e.message);return}
     for(const p of state.pieces.filter(C.active)){
       const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
       for(const key of ['clean','copy','style'].filter(k=>p[k])){
         const slots=key==='clean'?Array.from({length:Math.max(1,p.photoNames.length)},(_,i)=>i):[0];
-        for(const i of slots)work.push({p,ph,key,i});
+        for(const i of slots){
+          const slot=key+':'+i, token=p.id+slot;
+          if(scheduled.has(token)||p.jobs?.[slot]?.complete&& (key==='copy'||results.has(token)))continue;
+          scheduled.add(token);p.progress||={};p.progress[slot]={state:'queued',message:key+' · queued'};
+          pending.push({p,ph,key,i,slot,token});paintProgress(p);
+        }
       }
     }
-    $('#queue-dialog').showModal();log.replaceChildren();
-    if(!work.length){log.textContent='Choose a tool on an item first.';return;}
-    button.disabled=true;$('#queue-close').disabled=true;
-    $('#queue-dialog').oncancel=e=>e.preventDefault();
+    save();pump();
+  }
+  function pump(){
+    while(workers<3&&pending.length){
+      workers++;
+      const task=pending.shift();
+      processTask(task).finally(()=>{workers--;scheduled.delete(task.token);pump()});
+    }
+  }
+  async function processTask({p,ph,key,i,slot,token}){
+    const label=({clean:'Remove '+(i+1),copy:'Copy',style:'Creative'})[key];
+    p.progress[slot]={state:'running',message:label+' · preparing'};
+    const line={
+      set textContent(value){p.progress[slot].message=value;paintProgress(p)},
+      append(node){results.set(token,node);paintProgress(p)}
+    };
     try{
-      await ownerSession();
-      for(const {p,ph,key,i} of work){
-        const line=document.createElement('p');log.append(line);
-        const label=p.sku+' · '+({clean:'Remove '+(i+1),copy:'Copy',style:'Creative'})[key];
-        line.textContent=label+' — preparing';
-        try{
           p.jobs ||= {};
           const slot=key+':'+i;
           let job=p.jobs[slot];
@@ -193,7 +224,7 @@
                 form.append('images',await prepareListingImage(photo.file),(n<refs.length?'reference':'product')+'-'+n+'.jpg');
               }
             }
-            job=p.jobs[slot]={id:crypto.randomUUID()};form.set('job_id',job.id);
+            job=p.jobs[slot]={id:crypto.randomUUID(),titleBefore:p.title,descriptionBefore:p.description};form.set('job_id',job.id);
             localStorage.setItem(KEY,JSON.stringify(state));
             try{await jobRequest('',{method:'POST',body:form})}
             catch(e){if([400,401,403,413,422,429].includes(e.status)){delete p.jobs[slot];save()}throw e}
@@ -216,6 +247,7 @@
             const data=await result.json();
             if(!data.listing?.trim())throw Error('Empty listing result.');
             if(!job.applied){
+              const priorTitle=p.title,priorDescription=p.description;
               const lines=data.listing.trim().replace(/\*+/g,'').split(/\r?\n/);
               p.title=lines.shift().replace(/^title:\s*/i,'').trim().slice(0,80);
               p.description=lines.join('\n').trim().replace(/^description:\s*/i,'');
@@ -223,6 +255,8 @@
                 const match=p.description.match(new RegExp('^'+field+':\\s*(.+)$','im'));
                 if(!p[field]&&match)p[field]=match[1].trim();
               }
+              if(job.titleBefore!==undefined&&priorTitle!==job.titleBefore)p.title=priorTitle;
+              if(job.descriptionBefore!==undefined&&priorDescription!==job.descriptionBefore)p.description=priorDescription;
               job.applied=true;p.reviewed=false;
             }
             line.textContent=label+' — ready to review';
@@ -233,11 +267,17 @@
             const a=document.createElement('a');a.href=photoURL(blob);a.download=p.sku+'-'+key+'-'+(i+1)+(blob.type.includes('png')?'.png':'.jpg');a.textContent='Download image';
             line.textContent=label+' — ';line.append(a);
           }
-          save();
-        }catch(e){line.textContent=label+' — '+e.message; if(e.status===401||e.status===403)break;}
+          p.jobs[slot].complete=true; save();
+
+      p.progress[slot].state='done';
+      const card=$('[data-id="'+p.id+'"]');
+      if(card)for(const field of ['title','brand','size']){
+        const input=card.querySelector('[data-field="'+field+'"]');
+        if(input && document.activeElement!==input)input.value=p[field];
       }
-    }catch(e){log.textContent=e.message}
-    finally{button.disabled=false;$('#queue-close').disabled=false;$('#queue-dialog').oncancel=null;render();}
+      if(focusId===p.id && !$('#review-piece').contains(document.activeElement))showReview(p);
+    }catch(e){p.progress[slot]={state:'error',message:label+' · '+e.message}}
+    finally{paintProgress(p);save();renderCatalog()}
   }
   $('#run-desk').onclick=runLive;
   $('#export-desk').onclick=()=>{const p=state.pieces.find(p=>p.id===focusId);if(p&&C.active(p)){p.title=$('#edit-title').value;p.description=$('#edit-description').value}save();$('[data-view="export"]').click()};
@@ -294,6 +334,7 @@
     }render();
   });
   $('#new-batch').addEventListener('click',()=>{
+    if(scheduled.size){alert('Finish the current jobs before archiving. You can add more SKU slots now.');return;}
     const active=state.pieces.filter(C.active);if(!active.length){alert('Add a piece before starting another batch.');return;}
     state.archive.push(...active.map(p=>({...p,batch:state.batch})));state.batch++;state.pieces=Array.from({length:10},makePiece);selected.clear();render();
   });
@@ -375,5 +416,22 @@
     }catch(err){status.textContent=err.message}finally{e.target.disabled=false;format.disabled=false}
   };
   showExport();
+
+  const dock=document.createElement('div');dock.className='pro-dock';
+  dock.innerHTML='<button type="button" id="add-skus">+ 10 SKUs</button><button type="button" id="run-floating">Run selected</button>';
+  document.body.append(dock);
+  $('#add-skus').onclick=()=>{state.pieces.push(...Array.from({length:10},makePiece));render()};
+  $('#run-floating').onclick=runLive;
   render();
+  for(const p of state.pieces){
+    p.progress={};
+    for(const [slot,job] of Object.entries(p.jobs||{})){
+      const [key,index]=slot.split(':'),token=p.id+slot;
+      if(job.complete&&key==='copy'){p.progress[slot]={state:'done',message:'Copy · ready to review'};continue}
+      p.progress[slot]={state:'queued',message:key+' · recovering'};
+      scheduled.add(token);pending.push({p,ph:{products:[],refs:[]},key,i:Number(index),slot,token});
+    }
+    paintProgress(p);
+  }
+  pump();
 })();
