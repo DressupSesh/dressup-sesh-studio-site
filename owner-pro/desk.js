@@ -29,6 +29,7 @@
     for(const k of ['sku','department','category','size'])if(!String(p[k]??'').trim())errors.push(k+' is missing');
     if(!/^\d+$/.test(String(p.quantity))||Number(p.quantity)<1)errors.push('quantity must be a positive whole number');
     if(all.filter(x=>String(x.sku).trim().toUpperCase()===String(p.sku).trim().toUpperCase()).length>1)errors.push('duplicate SKU in this catalog');
+    if(!/^\d+(\.\d{1,2})?$/.test(String(p.price||''))||Number(p.price)<=0)errors.push('listing price is required and must be greater than zero');
     if(!p.reviewed)errors.push('seller review is required');
     if(p.title.length>80)errors.push('title exceeds 80 characters');
     return errors;
@@ -92,6 +93,74 @@
     const index=state.pieces.findIndex(x=>x.id===p.id);if(index<0)return;
     state.pieces[index]=replacement;selected.delete(p.id);sessionPhotos.delete(p.id);thumbCache.delete(p.id);focusId=replacement.id;render();
   }
+  const ICONS={
+    check:'<path d="m5 12 4 4L19 6"/>',play:'<path d="m8 5 11 7-11 7Z"/>',
+    copy:'<rect x="8" y="8" width="11" height="11" rx="1"/><path d="M16 8V5H5v11h3"/>',
+    phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 5h4m1 14h.01"/>',
+    desktop:'<rect x="3" y="4" width="18" height="13" rx="1"/><path d="M8 21h8m-4-4v4"/>',
+    save:'<path d="M4 3h13l3 3v15H4Z"/><path d="M7 3v6h9V3M7 21v-8h10v8"/>',
+    edit:'<path d="m4 16 12-12 4 4L8 20H4Zm10-10 4 4"/>',
+    undo:'<path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12"/>',
+    trash:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
+    retry:'<path d="M20 7V2m0 5h-5M4 17v5m0-5h5M20 7a9 9 0 0 0-15-2M4 17a9 9 0 0 0 15 2"/>',
+    archive:'<path d="M3 3h18v5H3Zm2 5v13h14V8M9 12h6"/>',
+    review:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    posh:'<path d="M5 8h14l2 13H3ZM8 8V6a4 4 0 0 1 8 0v2"/><path d="M10 18v-7h3a2 2 0 0 1 0 4h-3"/>',
+    back:'<path d="m10 5-7 7 7 7M3 12h18"/>',close:'<path d="m5 5 14 14M19 5 5 19"/>',
+    add:'<path d="M12 3v18M3 12h18"/>',grid:'<path d="M3 3h7v7H3Zm11 0h7v7h-7ZM3 14h7v7H3Zm11 0h7v7h-7Z"/>',
+    export:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',chevron:'<path d="m6 9 6 6 6-6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10v7m0-11v1"/>'
+  };
+  function setIcon(button,key,label){
+    button.type='button';button.dataset.icon=key;button.dataset.label=label;button.title=label;button.setAttribute('aria-label',label);
+    button.classList.add('studio-icon');button.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[key]||ICONS.info)+'</svg>';
+  }
+  function iconButton(key,label,action){const b=document.createElement('button');setIcon(b,key,label);b.onclick=action;return b}
+  function decorateButtons(){
+    for(const b of document.querySelectorAll('.desk button,#asset-review button,.pro-dock button,.photo-editor button')){
+      if(b.querySelector('svg'))continue;
+      const label=b.getAttribute('aria-label')||b.textContent.trim()||b.title||'Options';
+      const key=/options/i.test(label)?'chevron':/poshmark/i.test(label)?'posh':/copy/i.test(label)?'copy':/phone|share/i.test(label)?'phone':/zip|computer/i.test(label)?'desktop':/download|export/i.test(label)?'export':/save/i.test(label)?'save':/run/i.test(label)?'play':/archive|inventory/i.test(label)?'archive':/undo/i.test(label)?'undo':/retry|regenerate|start over|reset/i.test(label)?'retry':/delete/i.test(label)?'trash':/edit/i.test(label)?'edit':/review/i.test(label)?'review':/cancel|close/i.test(label)?'close':/add|\+ 10/i.test(label)?'add':/←|back/i.test(label)?'back':/studio/i.test(label)?'grid':'info';
+      setIcon(b,key,label);
+    }
+  }
+  function acknowledge(button,label='Done'){
+    const key=button.dataset.icon||'check',original=button.dataset.label||label;
+    setIcon(button,'check',label);button.classList.add('action-confirmed');
+    setTimeout(()=>{if(button.isConnected){setIcon(button,key,original);button.classList.remove('action-confirmed')}},1800);
+  }
+  const iconObserver=new MutationObserver(()=>{if(!iconObserver.pending){iconObserver.pending=true;queueMicrotask(()=>{iconObserver.pending=false;decorateButtons()})}});
+  iconObserver.observe(document.body,{childList:true,subtree:true});
+  function itemBusy(p){return [...scheduled].some(token=>token.startsWith(p.id))}
+  function archiveItem(p){
+    if(!p.finalSaved||itemBusy(p)){alert('Save the item after processing finishes, then archive it.');return}
+    const index=state.pieces.findIndex(item=>item.id===p.id);if(index<0)return;
+    state.archive.push({...p,batch:state.batch});state.pieces[index]=makePiece();selected.delete(p.id);save();location.hash='';render();
+  }
+  async function fileHash(file){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))].map(n=>n.toString(16).padStart(2,'0')).join('')}
+  async function uniquePhotos(files,key){
+    const seen=new Set();
+    for(const item of [...state.pieces,...state.archive]){
+      item.photoHashes||={};
+      for(const assetKey of Object.keys(item.assets||{}).filter(k=>k.startsWith(key==='products'?'original:':'reference:'))){
+        if(!item.photoHashes[assetKey]){const asset=await assetStore(item.id+':'+assetKey);if(asset)item.photoHashes[assetKey]=await fileHash(asset.blob)}
+        if(item.photoHashes[assetKey])seen.add(item.photoHashes[assetKey]);
+      }
+    }
+    const accepted=[];let duplicates=0;
+    for(const file of files){const hash=await fileHash(file);if(seen.has(hash)){duplicates++;continue}seen.add(hash);accepted.push({file,hash})}
+    return {accepted,duplicates};
+  }
+  async function regenerateItem(p,key,index=0){
+    const slot=key+':'+index,token=p.id+slot;
+    if(scheduled.has(token))throw Error('This workflow is already queued.');
+    if(key==='clean'&&(p.retries?.[slot]||0)>=3)throw Error('Three retries used for this photo.');
+    const ph=await restorePhotos(p);
+    if(scheduled.has(token))throw Error('This workflow is already queued.');
+    if(!ph.products.length||(key==='clean'&&!ph.products[index]?.file))throw Error('The original photo is unavailable. Reattach it in Studio first.');
+    p.jobs||={};delete p.jobs[slot];p.progress||={};p.progress[slot]={state:'queued',message:'Retry queued'};
+    p.retries||={};p.retries[slot]=(p.retries[slot]||0)+1;p.finalSaved=false;
+    if(p.deletedAssets)delete p.deletedAssets[slot];scheduled.add(token);pending.push({p,ph,key,i:index,slot,token});save();paintProgress(p);pump();
+  }
   function render(){
     $('#piece-grid').innerHTML=state.pieces.map(p=>{
       fillBrand(p);const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
@@ -114,6 +183,7 @@
         photo.querySelectorAll('span').forEach(x=>x.remove());
         const im=new Image();im.src='piece-'+p.sample+'.png';im.alt=p.title;photo.prepend(im);
       }
+      if(p.photoNames.length){const count=document.createElement('span');count.className='uploaded-check';count.textContent='✓ '+p.photoNames.length;count.setAttribute('aria-label',p.photoNames.length+' photos attached');photo.append(count)}
       card.classList.toggle('vacant',!C.active(p));
       card.classList.toggle('current',p.id===focusId);
       const fields=card.querySelector('.quick-fields');card.append(fields);
@@ -165,16 +235,17 @@
   function showReview(){ $('#review-piece')?.remove(); }
 
   const pending=[], scheduled=new Set(), results=new Map();
-  let workers=0;
+  let workers=0,submitting=false,uploading=false;
   const activeWorkflows={clean:0,copy:0,style:0};
   function paintProgress(p){
+    window.dispatchEvent(new CustomEvent('studio-job',{detail:{id:p.id}}));
     const card=$('[data-id="'+p.id+'"]');if(!card)return;
     let box=card.querySelector('.job-progress');
     if(!box){box=document.createElement('div');box.className='job-progress';card.append(box)}
     const list=Object.values(p.progress||{}), done=list.filter(j=>j.state==='done').length;
     box.replaceChildren();
     if(!list.length&&!C.active(p))return;
-    const text=document.createElement('p');text.textContent='● Ready to review';text.style.color='#28743b';if(done)box.append(text);
+    const text=document.createElement('p');text.textContent=p.finalSaved?'✓ Item saved':'● Ready to review';text.style.color='#28743b';if(done||p.finalSaved)box.append(text);
     for(const [index,key] of ['clean','copy','style'].entries()){
       const row=card.querySelectorAll('.tool-row')[index];if(!row)continue;
       let meter=row.querySelector('progress');if(!meter){meter=document.createElement('progress');row.append(meter)}
@@ -194,24 +265,30 @@
     }
     const reset=document.createElement('button');reset.textContent='Start over';reset.onclick=e=>{e.stopPropagation();startOver(p)};
     const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton,reset);
+    const post=iconButton('posh','Post SKU '+p.sku+' to Poshmark',async e=>{e.stopPropagation();try{const final=await assetStore(p.id+':final');if(final&&p.finalSaved){post.disabled=true;acknowledge(post,'Preparing saved item');try{await openPosh(p,final)}finally{post.disabled=false}}else alert('Review and save this item first.')}catch(error){alert(error.message)}});post.disabled=!p.finalSaved;box.append(post);
+    if(p.finalSaved){const archived=state.archive.some(item=>item.id===p.id);if(!archived){const archive=iconButton('archive','Archive saved SKU '+p.sku,e=>{e.stopPropagation();archiveItem(p)});archive.disabled=itemBusy(p);box.append(archive)}}
     card.querySelectorAll('[data-photos]').forEach(input=>input.disabled=list.some(x=>x.state==='running'||x.state==='queued'));
   }
   async function runLive(){
+    if(submitting)return;
     if(!state.pieces.some(p=>C.active(p)&&selected.has(p.id))){alert('Select one or more SKUs first.');return}
-    try{await ownerSession()}catch(e){alert(e.message);return}
+    submitting=true;
+    for(const id of ['run-desk','run-floating']){const button=$('#'+id);if(button){button.disabled=true;setIcon(button,'check','Run request received')}}
+    try{await ownerSession();
     for(const p of state.pieces.filter(p=>C.active(p)&&selected.has(p.id))){
       const ph=await restorePhotos(p);
       for(const key of ['clean','copy','style'].filter(k=>p[k])){
         const slots=key==='clean'?Array.from({length:Math.max(1,p.photoNames.length)},(_,i)=>i):[0];
         for(const i of slots){
           const slot=key+':'+i, token=p.id+slot;
-          if(scheduled.has(token)||p.jobs?.[slot]?.complete&& (key==='copy'||results.has(token)))continue;
+          if(p.deletedAssets?.[slot]||scheduled.has(token)||p.jobs?.[slot]?.complete&& (key==='copy'||results.has(token)))continue;
           scheduled.add(token);p.progress||={};p.progress[slot]={state:'queued',message:key+' · queued'};
           pending.push({p,ph,key,i,slot,token});paintProgress(p);
         }
       }
     }
     save();pump();
+    }catch(e){alert(e.message)}finally{submitting=false;setTimeout(updateCount,1600)}
   }
   function pump(){
     while(workers<4&&pending.length){
@@ -220,7 +297,7 @@
       for(let i=1;i<pending.length;i++)if(activeWorkflows[pending[i].key]<activeWorkflows[pending[index].key])index=i;
       const task=pending.splice(index,1)[0];
       workers++;activeWorkflows[task.key]++;
-      processTask(task).finally(()=>{workers--;activeWorkflows[task.key]--;scheduled.delete(task.token);pump()});
+      processTask(task).finally(()=>{workers--;activeWorkflows[task.key]--;scheduled.delete(task.token);paintProgress(task.p);pump()});
     }
   }
   async function processTask({p,ph,key,i,slot,token}){
@@ -300,7 +377,7 @@
             let blob;
             if(key==='clean')blob=await result.blob();
             else{const data=await result.json();if(!data.image)throw Error('Missing creative output.');blob=new Blob([Uint8Array.from(atob(data.image),c=>c.charCodeAt(0))],{type:data.mimeType||'image/jpeg'});}
-            if(!job.complete || !p.assets?.[slot])await rememberAsset(p,slot,blob,label);
+            if(!p.deletedAssets?.[slot]&&(!job.complete || !p.assets?.[slot]))await rememberAsset(p,slot,blob,label);
             const a=document.createElement('a');a.href=photoURL(blob);a.download=p.sku+'-'+key+'-'+(i+1)+(blob.type.includes('png')?'.png':'.jpg');a.textContent='Download image';
             line.textContent=label+' — ';line.append(a);
           }
@@ -320,34 +397,44 @@
   $('#export-desk').onclick=()=>{save();$('[data-view="export"]').click()};
   function updateCount(){const a=state.pieces.filter(C.active);
     const count=a.filter(p=>selected.has(p.id)).length;
-    for(const id of ['run-desk','run-floating','save-selected']){const button=$('#'+id);if(button){button.textContent=(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':'');button.disabled=!count;button.title=count?'':'Check Select beside one or more SKUs'}}
+    for(const id of ['run-desk','run-floating','save-selected']){const button=$('#'+id);if(button){button.textContent=(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':'');button.disabled=!count||(submitting&&id!=='save-selected');setIcon(button,id==='save-selected'?'save':'play',(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':''));button.title=count?button.getAttribute('aria-label'):'Check Select beside one or more SKUs'}}
     for(const card of $$('#piece-grid .piece-card'))card.classList.toggle('batch-selected',selected.has(card.dataset.id));$('#batch-count').textContent=`${a.length}/10 pieces · ${selected.size} selected · batch ${state.batch}`;$('#select-all').checked=a.length>0&&a.every(p=>selected.has(p.id));}
   function renderCatalog(){
     const a=allPieces();$('#catalog-table tbody').innerHTML=a.length?a.map(p=>`<tr><td>${esc(p.sku)}</td><td>${esc(p.title||'Untitled')} ${state.archive.some(x=>x.id===p.id)?`<button class="small-btn" data-restore="${p.id}">Edit piece</button>`:''}</td><td>${esc([p.brand,p.size].filter(Boolean).join(' / '))}</td><td>${p.price?esc('$'+p.price):'—'}</td><td>${esc(p.location||'—')}</td><td>${p.reviewed?'Reviewed':'Needs review'}</td><td>${p.batch||state.batch}</td></tr>`).join(''):'<tr><td colspan="7">Add a piece or load samples to start your catalog.</td></tr>';
   }
   $('#piece-grid').addEventListener('input',e=>{
     const card=e.target.closest('[data-id]');if(!card)return;const p=state.pieces.find(x=>x.id===card.dataset.id);
-    if(e.target.dataset.field){p[e.target.dataset.field]=e.target.value;p.reviewed=false;card.classList.remove('piece-reviewed');card.querySelector('[data-reviewed]').checked=false;card.querySelector('.piece-status').textContent='Changed · review this piece again';if(e.target.dataset.field==='title'){card.querySelector('h2').textContent=p.title||'New piece';}save();updateCount();renderCatalog();}
+    if(e.target.dataset.field){p[e.target.dataset.field]=e.target.value;p.reviewed=false;p.finalSaved=false;card.classList.remove('piece-reviewed');card.querySelector('[data-reviewed]').checked=false;card.querySelector('.piece-status').textContent='Changed · review this piece again';if(e.target.dataset.field==='title'){card.querySelector('h2').textContent=p.title||'New piece';}save();updateCount();renderCatalog();}
   });
   $('#piece-grid').addEventListener('change',async e=>{
     const card=e.target.closest('[data-id]');if(!card)return;const p=state.pieces.find(x=>x.id===card.dataset.id);
     if(e.target.hasAttribute('data-select')){e.target.checked?selected.add(p.id):selected.delete(p.id);updateCount();}
     if(e.target.hasAttribute('data-reviewed')){p.reviewed=e.target.checked;card.classList.toggle('piece-reviewed',p.reviewed);card.querySelector('.piece-status').textContent=p.reviewed?'Reviewed by you':'Draft · review before export';save();renderCatalog();}
     if(e.target.dataset.photos){
-      const key=e.target.dataset.photos,files=[...e.target.files];
-      if(files.length>(key==='refs'?3:20)||files.some(f=>f.size>15*1024*1024||!/^image\/(jpeg|png|webp)$/.test(f.type))){alert('Use JPG, PNG or WebP files under 15 MB each. Maximum: 20 product photos or 3 reference photos.');return;}
-      const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
-      const kind=card.querySelector('[data-ref-kind]').value;
-      if(p.jobs && Object.keys(p.jobs).length){
-        if(!confirm('Replacing photos starts a new generation set for the affected tools. Download any previous images first.'))return;
-        if(key==='products')p.jobs={};else delete p.jobs['copy:0'];
-      }
-      if(key==='products'){
-        try{for(const [index,file] of files.entries())await rememberAsset(p,'original:'+index,file,'Original '+(index+1))}
-        catch(error){alert('Photos could not be saved on this device: '+error.message);return}
-      }
-      ph[key]=files.map(f=>({name:f.name,url:photoURL(f),kind,file:f}));sessionPhotos.set(p.id,ph);
-      p[key==='products'?'photoNames':'referenceNames']=files.map(f=>f.name);p.reviewed=false;selected.add(p.id);render();
+      if(uploading){alert('The previous photo selection is still being added.');return}
+      uploading=true;e.target.disabled=true;
+      try{
+        const key=e.target.dataset.photos,files=[...e.target.files];
+        if(files.length>(key==='refs'?3:20)||files.some(f=>f.size>15*1024*1024||!/^image\/(jpeg|png|webp)$/.test(f.type)))throw Error('Use JPG, PNG or WebP files under 15 MB. Maximum: 20 product photos or 3 references.');
+        const ph=await restorePhotos(p),kind=card.querySelector('[data-ref-kind]').value;
+        if(key==='products'&&p.photoNames.length&&!ph.products.length&&!(files.length===p.photoNames.length&&files.every((file,i)=>file.name===p.photoNames[i])))throw Error('Reattach the original photos in their original order, or use Start over to replace this item.');
+        const {accepted,duplicates}=await uniquePhotos(files,key);
+        if(ph[key].length+accepted.length>(key==='refs'?3:20))throw Error('This item already has '+ph[key].length+' photos. Remove photos before adding more.');
+        const offset=ph[key].length;
+        p.photoHashes||={};
+        for(const [n,{file,hash}] of accepted.entries()){
+          const index=offset+n,assetKey=(key==='products'?'original:':'reference:')+index;
+          await rememberAsset(p,assetKey,file,(key==='products'?'Original ':'Reference ')+(index+1));p.photoHashes[assetKey]=hash;
+          ph[key].push({file,name:file.name,url:photoURL(file),kind});
+        }
+        if(accepted.length){
+          sessionPhotos.set(p.id,ph);p[key==='products'?'photoNames':'referenceNames']=ph[key].map(f=>f.name);p.reviewed=false;p.finalSaved=false;
+          // Additional photos change the copy and creative inputs; preserve completed background results.
+          for(const slot of key==='products'?['copy:0','style:0']:['copy:0']){if(p.jobs)delete p.jobs[slot];if(p.progress)delete p.progress[slot]}
+          selected.add(p.id);save();render();
+        }
+        if(duplicates)alert(duplicates+' duplicate photo'+(duplicates===1?' was':'s were')+' skipped.');
+      }catch(error){alert(error.message)}finally{uploading=false;if(e.target.isConnected){e.target.disabled=false;e.target.value=''}}
     }
   });
   $('#piece-grid').addEventListener('click',e=>{
@@ -396,7 +483,7 @@
   const format=$('#export-format'),inputs=$('#export-inputs'),status=$('#export-status'),files=$('#export-files');
   const batch=()=>state.pieces.filter(C.active);
   const help={
-    zip:'Review your items, then prepare the export. The first attached product photo is the cover. Studio converts product photos to JPEG and names them by SKU. To use a cleaned or creative image, download it and attach it as a product photo first. Download both files, choose Photos on Your Computer in Poshmark, and upload the CSV and ZIP together. Reference photos stay out of the ZIP.',
+    zip:'Review and save your final photo selection for each item. Studio exports those saved photos as white-background JPEGs named by SKU; the first selected photo is the cover. Download both files, choose Photos on Your Computer in Poshmark, and upload the CSV and ZIP together. Reference photos are excluded.',
     url:'Paste direct public image links for each SKU, one per line, cover first. Leave the links blank to add photos later in your Poshmark drafts. Download the CSV, choose Photos in an Online Cloud in Poshmark, and upload the CSV alone.',
     edits:'For existing closet SKUs only. Enter only the values you intend to change. Quantity 0 marks an item sold out. Price 0 marks it not for sale. Changing price can clear existing Smart Sell settings. Choose Quick Edits in Poshmark and upload the CSV alone.',
     catalog:'Download your current and archived inventory for your own records.'
@@ -436,12 +523,10 @@
           const issues=C.issues(p,allPieces());if(issues.length)throw Error(p.sku+' · '+issues.join(', '));
           Object.assign(values,{title:p.title,description:p.description,brand:p.brand,department:p.department,category:p.category,quantity:p.quantity,size:p.size,'listing price':p.price,color1:p.color,availability:'Draft'});
           if(mode==='zip'){
-            const images=sessionPhotos.get(p.id)?.products||[];
-            if(!images.length||images.length>16)throw Error(p.sku+' · Attach 1–16 product photos in this tab.');
-            for(const [i,photo] of images.entries()){
-              if(!photo.file)throw Error(p.sku+' · Reattach product photos.');
-              zip.file(p.sku+'-'+(i||'CS')+'.jpg',await (await prepareListingImage(photo.file)).arrayBuffer());
-            }
+            const final=p.finalSaved?await assetStore(p.id+':final'):null;
+            const images=final?.assets||[];
+            if(!images.length||images.length>16)throw Error(p.sku+' · Save 1–16 final photos in Review before exporting.');
+            for(const [i,photo] of images.entries())zip.file(p.sku+'-'+(i||'CS')+'.jpg',await (await whitePhoto(photo.blob)).arrayBuffer());
           }else{
             const urls=(changes.urls||'').split(/\s+/).filter(Boolean);
             if(urls.length>16||urls.some(u=>!/^https?:\/\/[^\s]+$/i.test(u)))throw Error(p.sku+' · Supply up to 16 public image URLs.');
@@ -485,6 +570,15 @@
   }
   const reviewStyle=document.createElement('style');
   reviewStyle.textContent='#asset-grid img,.piece-photo img,.photo-editor canvas{background:#fff}.review-quick-save{display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:0;background:#f8f6f1;padding:12px 0;z-index:3}.photo-actions{display:flex;flex-wrap:wrap;gap:8px}';document.head.append(reviewStyle);
+  const actionStyle=document.createElement('style');actionStyle.textContent=`
+.studio-icon{display:inline-flex!important;align-items:center;justify-content:center;flex-shrink:0;width:44px!important;height:44px;min-width:44px!important;padding:10px!important;vertical-align:middle;color:#393835!important}
+[hidden].studio-icon{display:none!important}.studio-icon svg{width:22px;height:22px;display:block;pointer-events:none}.studio-icon:disabled{opacity:.4}.pro-dock .studio-icon,#run-desk.studio-icon{color:white!important}
+.studio-icon.action-confirmed{color:#28743b!important}.photo-actions{gap:4px!important}#asset-review button{margin:2px}
+#asset-grid article{position:relative}#asset-grid article.photo-selected{border-color:#28743b}.photo-selected-badge{position:absolute;right:10px;top:12px;width:24px;height:24px;text-align:center;background:#28743b;color:white;display:none}.photo-selected .photo-selected-badge{display:block}
+#asset-grid input[type=checkbox],.handoff-photos input[type=checkbox]{width:22px;height:22px;accent-color:#28743b}#asset-grid article>label{padding-right:28px;display:flex;align-items:center;gap:8px}
+.desk .piece-photo>span.uploaded-check{display:block!important;position:absolute;left:4px;top:4px;background:#fff;color:#28743b;font-size:12px;padding:2px 4px;z-index:2}
+#review-title{resize:none;overflow:hidden;min-height:80px;white-space:pre-wrap;overflow-wrap:anywhere}#asset-grid progress{width:100%;accent-color:#28743b}#review-price:placeholder-shown{background:#fff0cf;border-color:#da9b39}
+`;document.head.append(actionStyle);
   const selectionStyle=document.createElement('style');selectionStyle.textContent=`
 .desk .sku-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px}
 .desk .piece-card .sku-selection{display:flex!important;align-items:center;gap:4px;font-size:11px}
@@ -505,6 +599,10 @@
       if(ph.products.length!==p.photoNames.length)ph.products=[];
       if(ph.products.length)sessionPhotos.set(p.id,ph);
     }
+    if(!ph.refs.length)for(let i=0;i<(p.referenceNames||[]).length;i++){
+      const asset=await assetStore(p.id+':reference:'+i);if(asset)ph.refs.push({file:asset.blob,name:p.referenceNames[i],url:photoURL(asset.blob),kind:'Reference'});
+    }
+    if(ph.products.length||ph.refs.length)sessionPhotos.set(p.id,ph);
     return ph;
   }
   const thumbCache=new Map();
@@ -522,73 +620,115 @@
   }
   async function rememberAsset(p,key,blob,label){
     await assetStore(p.id+':'+key,{blob,label,key});
-    p.assets||={};p.assets[key]=label;p.finalSaved=false;save();
+    p.assets||={};p.assets[key]=label;p.finalSaved=false;save();window.dispatchEvent(new CustomEvent('studio-asset',{detail:{id:p.id,key}}));
     if(key==='clean:0'){thumbCache.delete(p.id);await paintThumbnail(p)}
   }
   const review=document.createElement('section');review.id='asset-review';review.hidden=true;document.body.append(review);
   let reviewTicket=0;
   function reviewUrl(p){location.hash='review='+p.id}
+  let reviewEvents;
   async function openReview(){
+    reviewEvents?.abort();reviewEvents=new AbortController();
     const id=new URLSearchParams(location.hash.slice(1)).get('review');
     const p=[...state.pieces,...state.archive].find(x=>x.id===id),ticket=++reviewTicket;
     review.hidden=!p;$('#main').hidden=!!p;document.querySelector('.pro-dock').hidden=!!p;
     if(!p)return;
-    review.innerHTML='<button id="back-studio">← Studio</button><h1>Review SKU '+esc(p.sku)+'</h1><p>Choose every photo you want to post. Saved photos and copy are stored on this device.</p><label>Title<input id="review-title"></label><label>Description<textarea id="review-copy" rows="7"></textarea></label><div id="asset-grid"></div><div class="review-quick-save"><button id="save-final">Save final item</button><button id="copy-listing">Copy listing</button><button id="quick-photos">Save photos</button><button id="post-posh">Post to Poshmark</button></div><p id="review-status" role="status"></p>';
+    review.innerHTML='<button id="back-studio">← Studio</button><h1>Review SKU '+esc(p.sku)+'</h1><p>Check the photos to include in your saved item.</p><label>Title<textarea id="review-title" rows="3"></textarea></label><label>Description<textarea id="review-copy" rows="7"></textarea></label><button id="retry-copy">Regenerate copy with current references</button><label>Listing price ($)<input id="review-price" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Add listing price"></label><div id="asset-grid"></div><div class="review-quick-save"><button id="save-final">Save final item</button><button id="copy-listing">Copy listing</button><button id="quick-photos">Save photos to phone or computer</button><button id="post-posh">Post to Poshmark</button><button id="archive-item">Archive saved item</button></div><p id="review-status" role="status"></p>';
     $('#back-studio').onclick=()=>{location.hash='';render()};
-    $('#review-title').value=p.title;$('#review-copy').value=p.description;
-    const invalidate=()=>{p.finalSaved=false;$('#post-posh').disabled=true;save()};
-    $('#review-title').oninput=()=>{p.title=$('#review-title').value;invalidate()};
-    $('#review-copy').oninput=()=>{p.description=$('#review-copy').value;invalidate()};
-    let savedFinal=await assetStore(p.id+':final');
-    if(savedFinal)for(const asset of savedFinal.assets)asset.blob=await whitePhoto(asset.blob);
-    const chosen=new Map();
-    for(const key of Object.keys(p.assets||{}).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))){
-      const asset=await assetStore(p.id+':'+key);if(ticket!==reviewTicket)return;if(!asset)continue;
-      const box=document.createElement('article'),check=document.createElement('input'),label=document.createElement('label'),img=new Image();
-      check.type='checkbox';check.checked=p.finalKeys?p.finalKeys.includes(key):true;
-      label.append(check,document.createTextNode(' '+asset.label));img.src=photoURL(asset.blob);img.alt=asset.label;
-      box.append(label,img);$('#asset-grid').append(box);
-      if(check.checked)chosen.set(key,asset);
-      check.onchange=()=>{check.checked?chosen.set(key,asset):chosen.delete(key);invalidate()};
-      const actions=document.createElement('div');actions.className='photo-actions';box.append(actions);
-      const edit=document.createElement('button');edit.textContent='Edit photo';actions.append(edit);
-      const undo=document.createElement('button');undo.textContent='Undo';undo.disabled=!(await assetStore(p.id+':undo:'+key));actions.append(undo);
-      undo.onclick=async()=>{try{const previous=await assetStore(p.id+':undo:'+key);if(!previous)return;await rememberAsset(p,key,previous.blob,asset.label);asset.blob=previous.blob;img.src=photoURL(asset.blob);await assetStore(p.id+':undo:'+key,null);undo.disabled=true;invalidate()}catch(e){$('#review-status').textContent=e.message}};
-      const savePhoto=document.createElement('button');savePhoto.textContent='Save photo';actions.append(savePhoto);
-      savePhoto.onclick=async()=>{try{download(p.sku+'-'+key.replace(':','-')+'.jpg',await whitePhoto(asset.blob),'image/jpeg')}catch(e){$('#review-status').textContent=e.message}};
-      edit.onclick=()=>editAsset(asset,async blob=>{
-        await assetStore(p.id+':undo:'+key,{blob:asset.blob});undo.disabled=false;await rememberAsset(p,key,blob,asset.label);asset.blob=blob;img.src=photoURL(blob);
-        if(check.checked)chosen.set(key,asset);invalidate();
-      });
-      if(key.startsWith('clean:')){
-        const retry=document.createElement('button');retry.textContent='Regenerate';actions.append(retry);
-        retry.onclick=async()=>{
-          const slot=key,i=Number(slot.split(':')[1]),token=p.id+slot;
-          if(scheduled.has(token)){ $('#review-status').textContent='This photo is already processing.';return }
-          if((p.retries?.[slot]||0)>=3){$('#review-status').textContent='Three retries used for this photo.';return}
-          const original=await assetStore(p.id+':original:'+i);
-          if(!original){$('#review-status').textContent='Reattach the original photo in Studio to regenerate.';return}
-          const ph={products:[],refs:[]};ph.products[i]={file:original.blob};
-          p.retries||={};p.retries[slot]=(p.retries[slot]||0)+1;delete p.jobs[slot];
-          p.progress||={};p.progress[slot]={state:'queued',message:'Remove · retry queued'};scheduled.add(token);
-          pending.push({p,ph,key:'clean',i,slot,token});invalidate();pump();
-          $('#review-status').textContent='Regenerating. Return to Studio to follow progress, then reopen this review. Account usage rules apply.';
-        };
-      }
-    }
-    $('#post-posh').disabled=!p.finalSaved;
-    $('#save-final').onclick=async()=>{
-      try{
-        if(!chosen.size)throw Error('Select at least one photo.');
-        const final={title:$('#review-title').value,description:$('#review-copy').value,assets:await Promise.all([...chosen.values()].map(async asset=>({...asset,blob:await whitePhoto(asset.blob)})))};
-        await assetStore(p.id+':final',final);savedFinal=final;p.title=final.title;p.description=final.description;p.finalKeys=[...chosen.keys()];p.finalSaved=true;p.reviewed=true;save();
-        $('#post-posh').disabled=false;$('#review-status').textContent='Final photos and copy saved.';
-      }catch(e){$('#review-status').textContent=e.message}
+    $('#review-title').value=p.title;$('#review-copy').value=p.description;$('#review-price').value=p.price||'';
+    const growTitle=()=>{const t=$('#review-title');t.style.height='auto';t.style.height=t.scrollHeight+'px'};growTitle();
+    const syncSaved=()=>{
+      $('#post-posh').disabled=!p.finalSaved;$('#archive-item').disabled=!p.finalSaved||itemBusy(p);
+      setIcon($('#save-final'),p.finalSaved?'check':'save',p.finalSaved?'Item saved':'Save final item');
     };
-    $('#copy-listing').onclick=async()=>{try{await navigator.clipboard.writeText($('#review-title').value+'\n\n'+$('#review-copy').value);$('#review-status').textContent='Title and description copied together.'}catch(e){$('#review-status').textContent='Could not access clipboard. Select the text to copy manually.'}};
-    $('#quick-photos').onclick=()=>{if(!p.finalSaved){$('#review-status').textContent='Save the final item first, then choose photos to save.';return}$('#post-posh').click()};
-    $('#post-posh').onclick=()=>{
-      if(!p.finalSaved||!savedFinal){$('#review-status').textContent='Save the final item first.';return}
+    const invalidate=()=>{p.finalSaved=false;p.reviewed=false;syncSaved();save();paintProgress(p)};
+    $('#review-title').oninput=()=>{p.title=$('#review-title').value;growTitle();invalidate()};
+    $('#review-copy').oninput=()=>{p.description=$('#review-copy').value;invalidate()};
+    $('#review-price').oninput=()=>{p.price=$('#review-price').value;invalidate()};
+    $('#archive-item').onclick=()=>archiveItem(p);
+    let savedFinal=await assetStore(p.id+':final');if(ticket!==reviewTicket)return;
+    const chosen=new Map(),entries=new Map();
+    const updateTask=(key)=>{
+      const entry=entries.get(key);if(!entry)return;const job=p.progress?.[key],busy=scheduled.has(p.id+key)||['queued','running'].includes(job?.state);
+      if(entry.retry){entry.retry.disabled=busy;entry.meter.hidden=!busy;entry.meter.removeAttribute('value');if(!busy)setIcon(entry.retry,'retry','Regenerate '+entry.asset.label)}
+      entry.delete.disabled=busy;entry.edit.disabled=busy;
+      if(job?.state==='error'){entry.issue.hidden=false;entry.issue.onclick=()=>alert(job.message)}else entry.issue.hidden=true;
+    };
+    const upsertPhoto=async(key)=>{
+      if(key.startsWith('reference:')||p.deletedAssets?.[key])return;
+      const asset=await assetStore(p.id+':'+key);if(ticket!==reviewTicket||!asset)return;
+      if(entries.has(key)){
+        const entry=entries.get(key);Object.assign(entry.asset,asset);entry.img.src=photoURL(asset.blob);if(entry.check.checked)chosen.set(key,entry.asset);entry.undo.disabled=!(await assetStore(p.id+':undo:'+key));updateTask(key);return;
+      }
+      const box=document.createElement('article'),check=document.createElement('input'),label=document.createElement('label'),img=new Image();
+      check.type='checkbox';check.checked=p.finalKeys?p.finalKeys.includes(key):true;check.setAttribute('aria-label','Include '+asset.label);
+      label.append(check,document.createTextNode(' '+asset.label));img.src=photoURL(asset.blob);img.alt=asset.label;
+      const badge=document.createElement('span');badge.className='photo-selected-badge';badge.textContent='✓';badge.setAttribute('aria-hidden','true');
+      const actions=document.createElement('div');actions.className='photo-actions';
+      box.classList.toggle('photo-selected',check.checked);box.append(label,img,badge,actions);$('#asset-grid').append(box);
+      if(check.checked)chosen.set(key,asset);
+      check.onchange=()=>{check.checked?chosen.set(key,asset):chosen.delete(key);box.classList.toggle('photo-selected',check.checked);p.finalKeys=[...chosen.keys()];invalidate()};
+      const edit=iconButton('edit','Edit '+asset.label,()=>editAsset(asset,async blob=>{
+        await assetStore(p.id+':undo:'+key,{blob:asset.blob});await rememberAsset(p,key,blob,asset.label);Object.assign(asset,{blob});img.src=photoURL(blob);undo.disabled=false;invalidate();
+      }));
+      const undo=iconButton('undo','Undo edit to '+asset.label,async()=>{try{
+        const previous=await assetStore(p.id+':undo:'+key);if(!previous)return;
+        await rememberAsset(p,key,previous.blob,asset.label);asset.blob=previous.blob;img.src=photoURL(asset.blob);await assetStore(p.id+':undo:'+key,null);undo.disabled=true;invalidate();acknowledge(undo,'Edit undone');
+      }catch(e){alert(e.message)}});undo.disabled=!(await assetStore(p.id+':undo:'+key));
+      const downloadPhoto=iconButton('export','Download '+asset.label,async()=>{try{download(p.sku+'-'+key.replace(':','-')+'.jpg',await whitePhoto(asset.blob),'image/jpeg');acknowledge(downloadPhoto,'Photo downloaded')}catch(e){alert(e.message)}});
+      const remove=iconButton('trash','Delete '+asset.label,()=>{
+        if(!confirm('Remove '+asset.label+' from this item?'))return;
+        delete p.assets[key];p.deletedAssets||={};p.deletedAssets[key]=true;chosen.delete(key);p.finalKeys=[...chosen.keys()];entries.delete(key);box.remove();invalidate();
+        if(key==='clean:0'){thumbCache.delete(p.id);render()}
+      });
+      actions.append(edit,undo,downloadPhoto,remove);
+      let retry=null;const meter=document.createElement('progress');meter.hidden=true;meter.setAttribute('aria-label','Regenerating '+asset.label);box.append(meter);
+      if(key.startsWith('clean:')||key.startsWith('style:')){
+        retry=iconButton('retry','Regenerate '+asset.label,async()=>{
+          retry.disabled=true;acknowledge(retry,'Regeneration requested');meter.hidden=false;
+          try{await regenerateItem(p,key.split(':')[0],Number(key.split(':')[1]));invalidate()}
+          catch(e){retry.disabled=false;meter.hidden=true;setIcon(retry,'retry','Regenerate '+asset.label);alert(e.message)}
+        });actions.append(retry);
+      }
+      const issue=iconButton('info','Photo needs attention',()=>{});issue.hidden=true;actions.append(issue);
+      entries.set(key,{asset,box,img,check,edit,undo,delete:remove,retry,meter,issue});updateTask(key);
+    };
+    window.addEventListener('studio-asset',e=>{if(e.detail.id===p.id){invalidate();upsertPhoto(e.detail.key).catch(error=>alert(error.message))}},{signal:reviewEvents.signal});
+    window.addEventListener('studio-job',e=>{
+      if(e.detail.id!==p.id)return;for(const key of entries.keys())updateTask(key);
+      const busy=scheduled.has(p.id+'copy:0');$('#retry-copy').disabled=busy;
+      if(p.progress?.['copy:0']?.state==='done'){
+        $('#review-title').value=p.title;$('#review-copy').value=p.description;growTitle();
+      }
+    },{signal:reviewEvents.signal});
+    for(const key of Object.keys(p.assets||{}).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})))await upsertPhoto(key);
+    if(ticket!==reviewTicket)return;
+    setIcon($('#retry-copy'),'retry','Regenerate copy with current references');
+    $('#retry-copy').onclick=async()=>{
+      const b=$('#retry-copy');b.disabled=true;acknowledge(b,'Copy regeneration requested');
+      try{await regenerateItem(p,'copy');invalidate()}catch(e){b.disabled=false;alert(e.message)}
+    };
+    $('#save-final').onclick=async()=>{
+      const button=$('#save-final');button.disabled=true;
+      try{
+        if(itemBusy(p))throw Error('Let this item finish processing before saving the final version.');
+        if(!chosen.size)throw Error('Select at least one photo.');
+        if(p.price&&!/^\d+(\.\d{1,2})?$/.test(p.price))throw Error('Enter a valid listing price.');
+        const final={title:p.title,description:p.description,price:p.price,assets:[]};
+        for(const asset of chosen.values())final.assets.push({...asset,blob:await whitePhoto(asset.blob)});
+        await assetStore(p.id+':final',final);savedFinal=final;p.finalKeys=[...chosen.keys()];p.finalSaved=true;p.reviewed=true;p.savedAt=Date.now();save();syncSaved();paintProgress(p);
+        $('#review-status').textContent='✓ Item saved. Ready to post or archive.';
+      }catch(e){$('#review-status').textContent=e.message}finally{button.disabled=false}
+    };
+    $('#copy-listing').onclick=async()=>{try{await navigator.clipboard.writeText(p.title+'\n\n'+p.description);acknowledge($('#copy-listing'),'Listing copied')}catch(e){alert('Clipboard unavailable. Select the title and description to copy.')}};
+    $('#quick-photos').onclick=$('#post-posh').onclick=()=>{
+      if(!p.finalSaved||!savedFinal){$('#review-status').textContent='Save the final item first.';return}openPosh(p,savedFinal).catch(error=>alert(error.message));
+    };
+    syncSaved();decorateButtons();
+  }
+  async function openPosh(p,savedFinal){
+      const prepared=[];for(const asset of savedFinal.assets)prepared.push({...asset,blob:await whitePhoto(asset.blob)});
+      savedFinal={...savedFinal,assets:prepared};
       const dialog=document.createElement('dialog');dialog.className='photo-editor';
       dialog.innerHTML='<h2>Save photos for Poshmark</h2><p>Select photos, then choose where to save them.</p><div class="handoff-photos"></div><button class="phone-save">Save / share to phone</button><button class="zip-save">Download ZIP</button><p class="handoff-status" role="status"></p><button class="continue-posh">Copy listing &amp; open Poshmark</button><button class="cancel-handoff">Cancel</button>';
       const selectedFiles=new Map();
@@ -626,7 +766,6 @@
       };
       dialog.querySelector('.cancel-handoff').onclick=()=>dialog.remove();dialog.oncancel=()=>dialog.remove();
       document.body.append(dialog);dialog.showModal();
-    };
   }
   function editAsset(asset,onSave){
     const dialog=document.createElement('dialog');dialog.className='photo-editor';
@@ -662,11 +801,11 @@
     try{
       for(const p of items){
         if(Object.values(p.progress||{}).some(job=>['running','queued'].includes(job.state)))continue;
-        const keys=p.finalKeys||Object.keys(p.assets||{}),assets=[];
+        const keys=p.finalKeys||Object.keys(p.assets||{}).filter(key=>!key.startsWith('reference:')),assets=[];
         for(const key of keys){const asset=await assetStore(p.id+':'+key);if(asset)assets.push({...asset,blob:await whitePhoto(asset.blob)})}
         if(!assets.length)continue;
-        await assetStore(p.id+':final',{title:p.title,description:p.description,assets});
-        p.finalKeys=assets.map(asset=>asset.key);p.finalSaved=true;saved++;
+        await assetStore(p.id+':final',{title:p.title,description:p.description,price:p.price,assets});
+        p.finalKeys=assets.map(asset=>asset.key);p.finalSaved=true;p.savedAt=Date.now();paintProgress(p);saved++;
       }
       save();status.textContent=saved+' item'+(saved===1?'':'s')+' saved.'+(saved<items.length?' Processing items or items without photos were skipped.':'');
     }catch(e){status.textContent='Could not finish saving: '+e.message}
