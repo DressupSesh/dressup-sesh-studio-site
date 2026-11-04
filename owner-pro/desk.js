@@ -306,6 +306,7 @@
       listingFields.querySelector('summary').textContent='Listing details';
       listingFields.querySelector('.quick-fields').append(priceLabel);
       for(const key of ['color','color2']){const label=card.querySelector('[data-field="'+key+'"]').parentElement;listingFields.querySelector('.quick-fields').append(label);}
+      card.querySelector('.quick-fields').style.display='none';listingFields.style.display='none';
       card.onclick=()=>{focusId=p.id;grid.querySelectorAll('.current').forEach(c=>c.classList.remove('current'));card.classList.add('current');updateCount();showReview(p)};
     });
     state.pieces.forEach(paintProgress);
@@ -397,7 +398,7 @@
       for(let i=1;i<pending.length;i++)if(activeWorkflows[pending[i].key]<activeWorkflows[pending[index].key])index=i;
       const task=pending.splice(index,1)[0];
       workers++;activeWorkflows[task.key]++;
-      processTask(task).finally(()=>{workers--;activeWorkflows[task.key]--;scheduled.delete(task.token);paintProgress(task.p);pump()});
+      processTask(task).finally(()=>{workers--;activeWorkflows[task.key]--;scheduled.delete(task.token);if(![...scheduled].some(t=>t.startsWith(task.p.id))){selected.delete(task.p.id);const checkbox=$('[data-id="'+task.p.id+'"] [data-select]');if(checkbox)checkbox.checked=false;updateCount()}paintProgress(task.p);pump()});
     }
   }
   async function processTask({p,ph,key,i,slot,token}){
@@ -431,6 +432,7 @@
                 form.set('additional_info',[p.brand&&'Brand: '+p.brand,p.title,p.size&&'Size: '+p.size,p.notes,...refs.map(r=>r.kind),'When a brand or size is legible on an uploaded label or explicitly supplied, include separate Brand: and Size: lines in the description. Also include Department: and Category: lines when supported by the item photos and details. Department must be one of '+Object.keys(C.taxonomy.departments).join(', ')+'. Category must be one of the allowed categories for that department: '+JSON.stringify(C.taxonomy.departments)+'. Do not guess; omit unknown values.'].filter(Boolean).join('\n'));
               }else{
                 form.set('product_count',String(products.length));
+                form.set('instructions',p.creativeInstructions||'');const creativeRef=await assetStore(p.id+':creative-reference');if(creativeRef?.blob)form.append('reference',await prepareListingImage(creativeRef.blob),'creative-reference.jpg');
                 form.set('type',({'On-body':'on_body','Editorial':'editorial'})[p.creative]||'ghost');
               }
               for(const [n,photo] of [...refs,...products].entries()){
@@ -537,7 +539,7 @@
           p.originalsChecked=true;p.missingOriginals=false;sessionPhotos.set(p.id,ph);p[key==='products'?'photoNames':'referenceNames']=ph[key].map(f=>f.name);p.reviewed=false;p.finalSaved=false;
           // Additional photos change the copy and creative inputs; preserve completed background results.
           for(const slot of key==='products'?['copy:0','style:0']:['copy:0']){if(p.jobs)delete p.jobs[slot];if(p.progress)delete p.progress[slot]}
-          selected.add(p.id);save();render();
+          for(const item of state.pieces){if(Object.values(item.jobs||{}).some(j=>j.complete))selected.delete(item.id);else if(item.photoNames?.length)selected.add(item.id);}save();render();
         }
         if(duplicates)alert(duplicates+' duplicate photo'+(duplicates===1?' was':'s were')+' skipped.');
       }catch(error){alert(error.message)}finally{uploading=false;if(e.target.isConnected){e.target.disabled=false;e.target.value=''}}
@@ -768,7 +770,8 @@
     $('#review-price').oninput=()=>{p.price=$('#review-price').value;invalidate()};
     const keepReviewVisible=()=>{const bar=$('.review-quick-save');if(bar)bar.style.bottom=Math.max(0,innerHeight-(window.visualViewport?.height||innerHeight)-(window.visualViewport?.offsetTop||0))+'px'};if(window.visualViewport){visualViewport.addEventListener('resize',keepReviewVisible,{signal:reviewEvents.signal});visualViewport.addEventListener('scroll',keepReviewVisible,{signal:reviewEvents.signal});}keepReviewVisible();
     const confirmation=$('#confirm-details').parentElement;confirmation.classList.add('review-confirmation');$('.review-quick-save').prepend(confirmation);
-    const details=$('#listing-details');
+    const backInBar=iconButton('back','Back to Studio',()=>{location.hash='';render()});$('.review-quick-save').insertBefore(backInBar,$('#save-final'));
+    const details=$('#listing-details');const disclosure=document.createElement('details');disclosure.className='review-listing-details';const summary=document.createElement('summary');summary.textContent='Listing details';details.before(disclosure);disclosure.append(summary,details);
     const labels={brand:'Brand',department:'Department',category:'Category',size:'Size',color:'Color',color2:'Second color (optional)',quantity:'Quantity',sku:'SKU',cost:'Purchase cost ($, optional)',location:'Storage location (optional)',notes:'Notes (optional)'};
     const showDetails=()=>{
       details.replaceChildren();const legend=document.createElement('legend');legend.textContent='Listing details';details.append(legend);
@@ -780,7 +783,7 @@
         if(key==='size'){if(p.size&&!options.includes(String(p.size)))input.add(new Option(p.size,p.size));input.add(new Option('Enter your own…','__custom__'));}input.value=key==='size'?p.size||'':options&&!options.includes(String(p[key]))?'':p[key]||'';input.onchange=()=>{if(key==='size'&&input.value==='__custom__'){const custom=prompt('Enter the size shown on the item (include the sizing system if not US):',p.size||'');if(custom===null){showDetails();return;}p.size=custom.trim();}else p[key]=input.value;if(key==='color'&&p.color2===p.color)p.color2='';if(key==='department'&&!C.taxonomy.departments[p.department]?.includes(p.category)){p.category='';p.size='';}if(key==='category'&&!C.taxonomy.sizes[p.category]?.includes(String(p.size)))p.size='';$('#confirm-details').checked=false;invalidate();showDetails();checkDetails()};wrap.append(input);details.append(wrap);
       }
     };
-    const postedLabel=document.createElement('label');postedLabel.innerHTML='<input type="checkbox" id="item-posted"> Posted to Poshmark';details.after(postedLabel);$('#item-posted').checked=!!p.posted;$('#item-posted').onchange=()=>{p.posted=$('#item-posted').checked;p.postedAt=p.posted?Date.now():null;save();paintProgress(p);renderCatalog()};
+    const postedLabel=document.createElement('label');postedLabel.innerHTML='<input type="checkbox" id="item-posted"> Posted to Poshmark';disclosure.append(postedLabel);disclosure.append($('#details-errors'));$('#item-posted').checked=!!p.posted;$('#item-posted').onchange=()=>{p.posted=$('#item-posted').checked;p.postedAt=p.posted?Date.now():null;save();paintProgress(p);renderCatalog()};
     const checkDetails=()=>{
       const errors=C.issues({...p,reviewed:true},allPieces());
       $('#details-errors').textContent=errors.length?'For bulk CSV: '+errors.join('; '):'Details complete. Review the suggestions before saving.';
@@ -796,6 +799,14 @@
     $('#review-copy').onchange=refreshDetails;$('#review-title').onchange=refreshDetails;$('#review-price').addEventListener('input',checkDetails);
     $('#archive-item').onclick=()=>archiveItem(p);
     let savedFinal=await assetStore(p.id+':final');if(ticket!==reviewTicket)return;
+    const creativeModule=document.createElement('details');creativeModule.className='creative-review-module';creativeModule.innerHTML='<summary>Creative options</summary><label>Style<select id="review-creative-type"><option>Ghost mannequin</option><option>On-body</option><option>Editorial</option></select></label><label>Instructions<textarea id="review-creative-instructions" rows="3" placeholder="Describe the styling, pose or background you want"></textarea></label><label>Reference photo<input id="review-creative-reference" type="file" accept="image/jpeg,image/png,image/webp"></label><img id="creative-reference-preview" alt="Creative reference" hidden style="width:100px;height:100px;object-fit:contain"><button id="remove-creative-reference">Remove reference</button><button id="regenerate-creative">Regenerate creative</button><p id="creative-options-status" role="status"></p>';$('#asset-grid').before(creativeModule);
+    $('#review-creative-type').value=p.creative||'Ghost mannequin';$('#review-creative-type').onchange=e=>{p.creative=e.target.value;save()};
+    $('#review-creative-instructions').value=p.creativeInstructions||'';$('#review-creative-instructions').oninput=e=>{p.creativeInstructions=e.target.value;save()};
+    const previewReference=async()=>{const a=await assetStore(p.id+':creative-reference');if(ticket!==reviewTicket)return;$('#creative-reference-preview').hidden=!a;$('#remove-creative-reference').hidden=!a;if(a)$('#creative-reference-preview').src=photoURL(a.blob)};
+    await previewReference();if(ticket!==reviewTicket)return;
+    $('#review-creative-reference').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>15*1024*1024||!/^image\/(jpeg|png|webp)$/.test(f.type))throw Error('Choose a JPG, PNG or WebP under 15 MB.');await assetStore(p.id+':creative-reference',{blob:f});await previewReference();$('#creative-options-status').textContent='Reference saved for the next creative.'}catch(error){$('#creative-options-status').textContent=error.message}};
+    $('#remove-creative-reference').onclick=async()=>{await assetStore(p.id+':creative-reference',null);$('#review-creative-reference').value='';await previewReference()};
+    $('#regenerate-creative').onclick=async()=>{const b=$('#regenerate-creative');b.disabled=true;try{await regenerateItem(p,'style');$('#creative-options-status').textContent='Creative queued with your instructions and reference.'}catch(error){$('#creative-options-status').textContent=error.message}finally{b.disabled=false}};
     const originals=document.createElement('section');originals.id='original-thumbnails';const originalsTitle=document.createElement('h2');originalsTitle.textContent='Original photos';originalsTitle.className='originals-heading';$('#asset-grid').after(originalsTitle,originals);
     const chosen=new Map(),entries=new Map(),photoNumbers=new Map();
     let displayedCopyJob=p.jobs?.['copy:0']?.complete?p.jobs['copy:0'].id:null;
