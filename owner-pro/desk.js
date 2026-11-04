@@ -221,7 +221,7 @@
   function render(){
     $('#piece-grid').innerHTML=state.pieces.map(p=>{
       fillDetails(p);if(p.finalSaved&&C.issues(p,allPieces()).length){p.finalSaved=false;p.reviewed=false;}const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
-      return `<article class="piece-card ${p.reviewed?'piece-reviewed':''}" data-id="${p.id}"><div class="piece-head"><h2>${esc(p.title||'New piece')}</h2><label class="inline-label"><input type="checkbox" data-select ${selected.has(p.id)?'checked':''}> Select</label></div><div class="piece-top"><label class="piece-photo">${ph.products.length?`<img src="${esc(ph.products[0].url)}" alt="Original item photo"><span>${ph.products.length} photo${ph.products.length===1?'':'s'} · replace</span>`:'<span aria-hidden="true">＋</span><span>Add item photos</span>'}<input class="visually-hidden" type="file" data-photos="products" accept="image/jpeg,image/png,image/webp" multiple></label><div class="quick-fields">${field(p,'title','Item / working title',{max:80})}${field(p,'brand','Brand')}${field(p,'size','Size')}${field(p,'price','Listing price ($)',{type:'number'})}</div></div>${p.originalsChecked&&p.missingOriginals?'<p class="field-note original-note">Original uploads unavailable on this device. Check Review for saved results. Reattach originals to run new processing.</p>':''}<div class="piece-actions"><button class="small-btn" data-run="clean">Clean photo</button><button class="small-btn" data-run="copy">Write copy</button><button class="small-btn" data-run="style">Style piece</button></div><p class="piece-status" role="status">${p.reviewed?'Reviewed by you':'Draft · review the facts before export'}</p><details><summary>Copy & reference photos</summary><label>Reference type<select data-ref-kind><option>Brand tag</option><option>Composition tag</option><option>Measurements</option><option>Condition / flaw</option><option>Other details</option></select></label><label>Reference photos<input type="file" data-photos="refs" accept="image/jpeg,image/png,image/webp" multiple></label><div class="ref-strip">${ph.refs.map(f=>`<img src="${esc(f.url)}" alt="${esc(f.kind)} reference">`).join('')}</div><p>References guide the copy. They are excluded from product photo exports.</p>${field(p,'color','Color')}${field(p,'color2','Second color (optional)')}<label>Condition, measurements and notes<textarea data-field="notes" rows="3">${esc(p.notes)}</textarea></label><label>Description<textarea data-field="description" rows="5">${esc(p.description)}</textarea></label><button class="small-btn" data-template>Build draft from typed facts</button><p class="field-note">Template only. No photo analysis or AI in this preview.</p></details><details><summary>Catalog & Poshmark fields</summary><div class="quick-fields">${field(p,'sku','Unique SKU')}${field(p,'department','Department')}${field(p,'category','Category')}${field(p,'quantity','Quantity',{type:'number'})}${field(p,'cost','Purchase cost ($)',{type:'number'})}${field(p,'location','Storage location')}</div><p>Choose from the available options and review suggested details before saving.</p></details><label class="inline-label"><input type="checkbox" data-reviewed ${p.reviewed?'checked':''}> I reviewed this piece’s details</label></article>`;
+      return `<article class="piece-card ${p.reviewed?'piece-reviewed':''}" data-id="${p.id}"><div class="piece-head"><h2>${esc(p.title||'New piece')}</h2><label class="inline-label"><input type="checkbox" data-select ${selected.has(p.id)?'checked':''}> Select</label></div><div class="piece-top"><label class="piece-photo">${ph.products.length?`<img src="${esc(ph.products[0].url)}" alt="Original item photo"><span>${ph.products.length} photo${ph.products.length===1?'':'s'} · replace</span>`:'<span aria-hidden="true">＋</span><span>Add item photos</span>'}<input class="visually-hidden" type="file" data-photos="products" accept="image/jpeg,image/png,image/webp" multiple></label><div class="quick-fields">${field(p,'title','Item / working title',{max:80})}${field(p,'brand','Brand')}${field(p,'size','Size')}${field(p,'price','Listing price ($)',{type:'number'})}</div></div>${p.originalsChecked&&p.missingOriginals?'<p class="field-note original-note">Original uploads unavailable on this device. Check Review for saved results. Reattach originals to run new processing.</p>':''}<div class="piece-actions"><button class="small-btn" data-run="clean">Clean photo</button><button class="small-btn" data-run="copy">Write copy</button><button class="small-btn" data-run="style">Style piece</button></div><p class="piece-status" role="status">${p.reviewed?'Reviewed by you':'Draft · review the facts before export'}</p><details><summary>Copy & reference photos</summary><label>Reference type<select data-ref-kind><option>Brand tag</option><option>Composition tag</option><option>Measurements</option><option>Condition / flaw</option><option>Other details</option></select></label><label>Reference photos<input type="file" data-photos="refs" accept="image/jpeg,image/png,image/webp" multiple></label><div class="ref-strip">${ph.refs.map(f=>`<img src="${esc(f.url)}" alt="${esc(f.kind)} reference">`).join('')}</div><p>References guide the copy. They are excluded from product photo exports.</p>${field(p,'color','Color')}${field(p,'color2','Second color (optional)')}<label>Condition, measurements and notes<textarea data-field="notes" rows="3">${esc(p.notes)}</textarea></label><label>Description<textarea data-field="description" rows="5">${esc(p.description)}</textarea></label><button class="small-btn" data-template>Build draft from typed facts</button><p class="field-note">Template only. No photo analysis or AI in this preview.</p></details><details><summary>Catalog & Poshmark fields</summary><div class="quick-fields">${field(p,'sku','Unique SKU')}${field(p,'department','Department')}${field(p,'category','Category')}${field(p,'quantity','Quantity',{type:'number'})}${field(p,'cost','Purchase cost ($, optional)',{type:'number'})}${field(p,'location','Storage location (optional)')}</div><p>Choose from the available options and review suggested details before saving.</p></details><label class="inline-label"><input type="checkbox" data-reviewed ${p.reviewed?'checked':''}> I reviewed this piece’s details</label></article>`;
     }).join('');
     layoutDesk();updateCount();renderCatalog();save();
   }
@@ -302,6 +302,22 @@
   const pending=[], scheduled=new Set(), results=new Map();
   let workers=0,submitting=false,uploading=false;
   const activeWorkflows={clean:0,copy:0,style:0};
+  async function saveStudioItem(p,button){
+    if(button.disabled)return;button.disabled=true;
+    try{
+      if(itemBusy(p))throw Error('Wait for this item to finish processing before saving.');
+      const issues=C.issues({...p,reviewed:true},allPieces());
+      if(issues.length){reviewUrl(p);alert('Complete these details before saving: '+issues.join('; '));return;}
+      const previous=await assetStore(p.id+':final');
+      const keys=(p.finalKeys||Object.keys(p.assets||{})).filter(key=>!key.startsWith('reference:')&&!p.deletedAssets?.[key]);
+      if(!keys.length||keys.length>16){reviewUrl(p);alert('Select between 1 and 16 photos in Review before saving.');return;}
+      if(!p.reviewed&&!confirm('Save SKU '+p.sku+'? Confirm you have reviewed its listing details and selected photos.'))return;
+      const assets=[];
+      for(const key of keys){const asset=await assetStore(p.id+':'+key)||previous?.assets?.find(a=>a.key===key);if(!asset)throw Error('A selected photo is unavailable. Open Review to check the selection.');assets.push({...asset,label:'Photo '+(assets.length+1),blob:await whitePhoto(asset.blob)});}
+      await assetStore(p.id+':final',{title:p.title,description:p.description,price:p.price,assets});
+      p.finalKeys=keys;p.finalSaved=true;p.reviewed=true;p.savedAt=Date.now();save();paintProgress(p);renderCatalog();
+    }catch(error){alert(error.message)}finally{if(button.isConnected)button.disabled=false;}
+  }
   function paintProgress(p){
     window.dispatchEvent(new CustomEvent('studio-job',{detail:{id:p.id}}));
     const card=$('[data-id="'+p.id+'"]');if(!card)return;
@@ -328,6 +344,7 @@
       row.querySelector('.workflow-error')?.remove();
       if(errors.length){const issue=document.createElement('button');issue.className='workflow-error';issue.textContent='!';issue.setAttribute('aria-label',key+' needs attention');issue.onclick=e=>{e.stopPropagation();alert(errors.join('\n'))};row.append(issue)}
     }
+    if(!p.finalSaved){const saveButton=iconButton('save','Save SKU '+p.sku,e=>{e.stopPropagation();saveStudioItem(p,saveButton)});saveButton.disabled=itemBusy(p);box.append(saveButton);}
     const reset=document.createElement('button');reset.textContent='Start over';reset.onclick=e=>{e.stopPropagation();startOver(p)};
     const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton,reset);
     const post=iconButton('posh','Quick Post SKU '+p.sku+' to Poshmark',async e=>{e.stopPropagation();try{const final=await assetStore(p.id+':final');if(final&&p.finalSaved){post.disabled=true;acknowledge(post,'Preparing saved item');try{await openPosh(p,final)}finally{post.disabled=false}}else alert('Review and save this item first.')}catch(error){alert(error.message)}});if(p.finalSaved)box.append(post);
@@ -367,7 +384,7 @@
     }
   }
   async function processTask({p,ph,key,i,slot,token}){
-    const label=({clean:'Remove '+(i+1),copy:'Copy',style:'Creative'})[key];
+    const label=({clean:'Photo '+(i+1),copy:'Copy',style:'Creative'})[key];
     p.progress[slot]={state:'running',message:label+' · preparing'};
     const line={
       set textContent(value){p.progress[slot].message=value;paintProgress(p)},
@@ -731,13 +748,13 @@
     $('#review-copy').oninput=()=>{p.description=$('#review-copy').value;invalidate()};
     $('#review-price').oninput=()=>{p.price=$('#review-price').value;invalidate()};
     const details=$('#listing-details');
-    const labels={brand:'Brand',department:'Department',category:'Category',size:'Size',color:'Color',color2:'Second color (optional)',quantity:'Quantity',sku:'SKU'};
+    const labels={brand:'Brand',department:'Department',category:'Category',size:'Size',color:'Color',color2:'Second color (optional)',quantity:'Quantity',sku:'SKU',cost:'Purchase cost ($, optional)',location:'Storage location (optional)',notes:'Notes (optional)'};
     const showDetails=()=>{
       details.replaceChildren();const legend=document.createElement('legend');legend.textContent='Listing details';details.append(legend);
       for(const [key,label] of Object.entries(labels)){
         const wrap=document.createElement('label');wrap.textContent=label;
         const options=key==='department'?Object.keys(C.taxonomy.departments):key==='category'?(C.taxonomy.departments[p.department]||[]):key==='size'?(C.taxonomy.sizes[p.category]||[]):key==='color'||key==='color2'?C.colors.filter(c=>key!=='color2'||c!==p.color):null;
-        const input=document.createElement(options?'select':'input');input.id='detail-'+key;
+        const input=document.createElement(options?'select':key==='notes'?'textarea':'input');input.id='detail-'+key;if(key==='cost'){input.type='number';input.min='0';input.step='0.01';}
         if(options){const values=['',...options];for(const value of values){const option=document.createElement('option');option.value=value;option.textContent=value||(key==='category'&&!p.department?'Choose department first':key==='size'&&!p.category?'Choose category first':'Choose '+label.toLowerCase());input.append(option)}}
         input.value=options&&!options.includes(String(p[key]))?'':p[key]||'';input.onchange=()=>{p[key]=input.value;if(key==='color'&&p.color2===p.color)p.color2='';if(key==='department'&&!C.taxonomy.departments[p.department]?.includes(p.category)){p.category='';p.size='';}if(key==='category'&&!C.taxonomy.sizes[p.category]?.includes(String(p.size)))p.size='';$('#confirm-details').checked=false;invalidate();showDetails();checkDetails()};wrap.append(input);details.append(wrap);
       }
@@ -757,7 +774,7 @@
     $('#review-copy').onchange=refreshDetails;$('#review-title').onchange=refreshDetails;$('#review-price').addEventListener('input',checkDetails);
     $('#archive-item').onclick=()=>archiveItem(p);
     let savedFinal=await assetStore(p.id+':final');if(ticket!==reviewTicket)return;
-    const chosen=new Map(),entries=new Map();
+    const chosen=new Map(),entries=new Map(),photoNumbers=new Map();
     let displayedCopyJob=p.jobs?.['copy:0']?.complete?p.jobs['copy:0'].id:null;
     const updateTask=(key)=>{
       const entry=entries.get(key);if(!entry)return;const job=p.progress?.[key],busy=scheduled.has(p.id+key)||['queued','running'].includes(job?.state);
@@ -768,6 +785,7 @@
     const upsertPhoto=async(key)=>{
       if(key.startsWith('reference:')||p.deletedAssets?.[key])return;
       const asset=await assetStore(p.id+':'+key)||savedFinal?.assets?.find(a=>a.key===key);if(ticket!==reviewTicket||!asset)return;
+      if(!photoNumbers.has(key))photoNumbers.set(key,photoNumbers.size+1);asset.label='Photo '+photoNumbers.get(key);
       if(entries.has(key)){
         const entry=entries.get(key);Object.assign(entry.asset,asset);entry.img.src=photoURL(asset.blob);if(entry.check.checked)chosen.set(key,entry.asset);entry.undo.disabled=!(await assetStore(p.id+':undo:'+key));updateTask(key);return;
       }
@@ -847,7 +865,8 @@
       const dialog=document.createElement('dialog');dialog.className='photo-editor';
       dialog.innerHTML='<h2>Save photos for Poshmark</h2><p>Select photos, then choose where to save them.</p><div class="handoff-photos"></div><button class="phone-save">Save / share to phone</button><button class="zip-save">Download ZIP</button><p class="handoff-status" role="status"></p><a class="continue-posh" href="https://poshmark.com/create-listing" target="_blank" rel="noopener external">Quick Post to Poshmark</a><button class="cancel-handoff">Cancel</button>';
       const selectedFiles=new Map();
-      savedFinal.assets.forEach((asset,i)=>{
+      savedFinal.assets.forEach((savedAsset,i)=>{
+        const asset={...savedAsset,label:'Photo '+(i+1)};
         const file=new File([asset.blob],p.sku+'-'+(i===0?'CS':i)+(asset.blob.type.includes('png')?'.png':'.jpg'),{type:asset.blob.type||'image/jpeg'});
         selectedFiles.set(i,file);
         const label=document.createElement('label'),check=document.createElement('input'),img=new Image();
