@@ -139,13 +139,7 @@
     state.pieces.forEach(p=>paintThumbnail(p).catch(console.error));
     showReview(state.pieces.find(p=>p.id===focusId)||state.pieces[0]);
   }
-  function showReview(p){
-    const drawer=$('#review-piece');
-    drawer.innerHTML='<strong>REVIEW ITEM — SKU '+esc(p.sku)+'</strong><label>Title<input id="edit-title"></label><label>Description<textarea id="edit-description"></textarea></label><button id="save-piece">Save changes</button>';
-    $('#edit-title').value=p.title;$('#edit-description').value=p.description;
-    for(const field of ['title','description'])$('#edit-'+field).oninput=e=>{p[field]=e.target.value;p.reviewed=false;save()};
-    $('#save-piece').onclick=()=>{p.title=$('#edit-title').value;p.description=$('#edit-description').value;p.reviewed=true;render()};
-  }
+  function showReview(){ $('#review-piece')?.remove(); }
 
   const pending=[], scheduled=new Set(), results=new Map();
   let workers=0;
@@ -166,9 +160,8 @@
       meter.setAttribute('aria-label',key+' progress');
     }
     const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton);
-    for(const [slot,item] of Object.entries(p.progress)){
+    for(const item of Object.values(p.progress||{}).filter(x=>x.state==='error')){
       const line=document.createElement('p');line.textContent=item.message;box.append(line);
-      const output=results.get(p.id+slot);if(output)line.append(output);
     }
     card.querySelectorAll('[data-photos]').forEach(input=>input.disabled=list.some(x=>x.state==='running'||x.state==='queued'));
   }
@@ -223,7 +216,7 @@
               const products=ph.products.slice(0,key==='copy'?8-refs.length:6);
               if(key==='copy'){
                 form.set('reference_count',String(refs.length));
-                form.set('additional_info',[p.brand,p.title,p.size,p.notes,...refs.map(r=>r.kind)].filter(Boolean).join('\n'));
+                form.set('additional_info',[p.brand&&'Brand: '+p.brand,p.title,p.size&&'Size: '+p.size,p.notes,...refs.map(r=>r.kind),'When a brand or size is legible on an uploaded label or explicitly supplied, include separate Brand: and Size: lines in the description. Do not guess; omit unknown values.'].filter(Boolean).join('\n'));
               }else{
                 form.set('product_count',String(products.length));
                 form.set('type',({'On-body':'on_body','Editorial':'editorial'})[p.creative]||'ghost');
@@ -260,8 +253,8 @@
               p.title=lines.shift().replace(/^title:\s*/i,'').trim().slice(0,80);
               p.description=lines.join('\n').trim().replace(/^description:\s*/i,'');
               for(const field of ['brand','size']){
-                const match=p.description.match(new RegExp('^'+field+':\\s*(.+)$','im'));
-                if(!p[field]&&match)p[field]=match[1].trim();
+                const match=p.description.match(new RegExp('^\\s*(?:[-•]\\s*)?'+field+'\\s*:\\s*(.+)$','im'));
+                if(!p[field]&&match&&!/^(unknown|n\/a|not (visible|specified|provided|available))\b/i.test(match[1]))p[field]=match[1].trim();
               }
               if(job.titleBefore!==undefined&&priorTitle!==job.titleBefore)p.title=priorTitle;
               if(job.descriptionBefore!==undefined&&priorDescription!==job.descriptionBefore)p.description=priorDescription;
@@ -284,19 +277,19 @@
         const input=card.querySelector('[data-field="'+field+'"]');
         if(input && document.activeElement!==input)input.value=p[field];
       }
-      if(focusId===p.id && !$('#review-piece').contains(document.activeElement))showReview(p);
+      
     }catch(e){p.progress[slot]={state:'error',message:label+' · '+e.message}}
     finally{paintProgress(p);save();renderCatalog()}
   }
   $('#run-desk').onclick=runLive;
-  $('#export-desk').onclick=()=>{const p=state.pieces.find(p=>p.id===focusId);if(p&&C.active(p)){p.title=$('#edit-title').value;p.description=$('#edit-description').value}save();$('[data-view="export"]').click()};
+  $('#export-desk').onclick=()=>{save();$('[data-view="export"]').click()};
   function updateCount(){const a=state.pieces.filter(C.active);$('#batch-count').textContent=`${a.length}/10 pieces · ${selected.size} selected · batch ${state.batch}`;$('#select-all').checked=a.length>0&&a.every(p=>selected.has(p.id));}
   function renderCatalog(){
     const a=allPieces();$('#catalog-table tbody').innerHTML=a.length?a.map(p=>`<tr><td>${esc(p.sku)}</td><td>${esc(p.title||'Untitled')} ${state.archive.some(x=>x.id===p.id)?`<button class="small-btn" data-restore="${p.id}">Edit piece</button>`:''}</td><td>${esc([p.brand,p.size].filter(Boolean).join(' / '))}</td><td>${p.price?esc('$'+p.price):'—'}</td><td>${esc(p.location||'—')}</td><td>${p.reviewed?'Reviewed':'Needs review'}</td><td>${p.batch||state.batch}</td></tr>`).join(''):'<tr><td colspan="7">Add a piece or load samples to start your catalog.</td></tr>';
   }
   $('#piece-grid').addEventListener('input',e=>{
     const card=e.target.closest('[data-id]');if(!card)return;const p=state.pieces.find(x=>x.id===card.dataset.id);
-    if(e.target.dataset.field){p[e.target.dataset.field]=e.target.value;p.reviewed=false;card.classList.remove('piece-reviewed');card.querySelector('[data-reviewed]').checked=false;card.querySelector('.piece-status').textContent='Changed · review this piece again';if(e.target.dataset.field==='title'){card.querySelector('h2').textContent=p.title||'New piece';if(focusId===p.id)$('#edit-title').value=p.title;}save();updateCount();renderCatalog();}
+    if(e.target.dataset.field){p[e.target.dataset.field]=e.target.value;p.reviewed=false;card.classList.remove('piece-reviewed');card.querySelector('[data-reviewed]').checked=false;card.querySelector('.piece-status').textContent='Changed · review this piece again';if(e.target.dataset.field==='title'){card.querySelector('h2').textContent=p.title||'New piece';}save();updateCount();renderCatalog();}
   });
   $('#piece-grid').addEventListener('change',async e=>{
     const card=e.target.closest('[data-id]');if(!card)return;const p=state.pieces.find(x=>x.id===card.dataset.id);
@@ -443,13 +436,24 @@
       tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
     });
   }
+  async function whitePhoto(blob){
+    const image=new Image(),url=URL.createObjectURL(blob);
+    try{
+      await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('Photo could not be loaded.'));image.src=url});
+      const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0);
+      return await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Could not save photo.')),'image/jpeg',0.95));
+    }finally{URL.revokeObjectURL(url)}
+  }
+  const reviewStyle=document.createElement('style');
+  reviewStyle.textContent='#asset-grid img,.piece-photo img,.photo-editor canvas{background:#fff}.review-quick-save{display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:0;background:#f8f6f1;padding:12px 0;z-index:3}.photo-actions{display:flex;flex-wrap:wrap;gap:8px}';document.head.append(reviewStyle);
   const thumbCache=new Map();
   async function paintThumbnail(p){
     if(!p.assets?.['clean:0'])return;
     let url=thumbCache.get(p.id);
     if(!url){
       const asset=await assetStore(p.id+':clean:0');if(!asset)return;
-      url=photoURL(asset.blob);thumbCache.set(p.id,url);
+      url=photoURL(await whitePhoto(asset.blob));thumbCache.set(p.id,url);
     }
     const photo=$('[data-id="'+p.id+'"] .piece-photo');if(!photo)return;
     let img=photo.querySelector('img');
@@ -469,15 +473,16 @@
     const p=[...state.pieces,...state.archive].find(x=>x.id===id),ticket=++reviewTicket;
     review.hidden=!p;$('#main').hidden=!!p;document.querySelector('.pro-dock').hidden=!!p;
     if(!p)return;
-    review.innerHTML='<button id="back-studio">← Studio</button><h1>Review SKU '+esc(p.sku)+'</h1><p>Choose every photo you want to post. Saved photos and copy are stored on this device.</p><label>Title<input id="review-title"></label><label>Description<textarea id="review-copy" rows="7"></textarea></label><div id="asset-grid"></div><button id="save-final">Save final item</button><button id="post-posh">Post to Poshmark</button><p id="review-status" role="status"></p>';
+    review.innerHTML='<button id="back-studio">← Studio</button><h1>Review SKU '+esc(p.sku)+'</h1><p>Choose every photo you want to post. Saved photos and copy are stored on this device.</p><label>Title<input id="review-title"></label><label>Description<textarea id="review-copy" rows="7"></textarea></label><div id="asset-grid"></div><div class="review-quick-save"><button id="save-final">Save final item</button><button id="copy-listing">Copy listing</button><button id="quick-photos">Save photos</button><button id="post-posh">Post to Poshmark</button></div><p id="review-status" role="status"></p>';
     $('#back-studio').onclick=()=>{location.hash='';render()};
     $('#review-title').value=p.title;$('#review-copy').value=p.description;
     const invalidate=()=>{p.finalSaved=false;$('#post-posh').disabled=true;save()};
     $('#review-title').oninput=()=>{p.title=$('#review-title').value;invalidate()};
     $('#review-copy').oninput=()=>{p.description=$('#review-copy').value;invalidate()};
     let savedFinal=await assetStore(p.id+':final');
+    if(savedFinal)for(const asset of savedFinal.assets)asset.blob=await whitePhoto(asset.blob);
     const chosen=new Map();
-    for(const key of Object.keys(p.assets||{})){
+    for(const key of Object.keys(p.assets||{}).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))){
       const asset=await assetStore(p.id+':'+key);if(ticket!==reviewTicket)return;if(!asset)continue;
       const box=document.createElement('article'),check=document.createElement('input'),label=document.createElement('label'),img=new Image();
       check.type='checkbox';check.checked=p.finalKeys?p.finalKeys.includes(key):true;
@@ -485,13 +490,18 @@
       box.append(label,img);$('#asset-grid').append(box);
       if(check.checked)chosen.set(key,asset);
       check.onchange=()=>{check.checked?chosen.set(key,asset):chosen.delete(key);invalidate()};
-      const edit=document.createElement('button');edit.textContent='Edit photo';box.append(edit);
+      const actions=document.createElement('div');actions.className='photo-actions';box.append(actions);
+      const edit=document.createElement('button');edit.textContent='Edit photo';actions.append(edit);
+      const undo=document.createElement('button');undo.textContent='Undo';undo.disabled=!(await assetStore(p.id+':undo:'+key));actions.append(undo);
+      undo.onclick=async()=>{try{const previous=await assetStore(p.id+':undo:'+key);if(!previous)return;await rememberAsset(p,key,previous.blob,asset.label);asset.blob=previous.blob;img.src=photoURL(asset.blob);await assetStore(p.id+':undo:'+key,null);undo.disabled=true;invalidate()}catch(e){$('#review-status').textContent=e.message}};
+      const savePhoto=document.createElement('button');savePhoto.textContent='Save photo';actions.append(savePhoto);
+      savePhoto.onclick=async()=>{try{download(p.sku+'-'+key.replace(':','-')+'.jpg',await whitePhoto(asset.blob),'image/jpeg')}catch(e){$('#review-status').textContent=e.message}};
       edit.onclick=()=>editAsset(asset,async blob=>{
-        await rememberAsset(p,key,blob,asset.label);asset.blob=blob;img.src=photoURL(blob);
+        await assetStore(p.id+':undo:'+key,{blob:asset.blob});undo.disabled=false;await rememberAsset(p,key,blob,asset.label);asset.blob=blob;img.src=photoURL(blob);
         if(check.checked)chosen.set(key,asset);invalidate();
       });
       if(key.startsWith('clean:')){
-        const retry=document.createElement('button');retry.textContent='Regenerate';box.append(retry);
+        const retry=document.createElement('button');retry.textContent='Regenerate';actions.append(retry);
         retry.onclick=async()=>{
           const slot=key,i=Number(slot.split(':')[1]),token=p.id+slot;
           if(scheduled.has(token)){ $('#review-status').textContent='This photo is already processing.';return }
@@ -510,11 +520,13 @@
     $('#save-final').onclick=async()=>{
       try{
         if(!chosen.size)throw Error('Select at least one photo.');
-        const final={title:$('#review-title').value,description:$('#review-copy').value,assets:[...chosen.values()]};
+        const final={title:$('#review-title').value,description:$('#review-copy').value,assets:await Promise.all([...chosen.values()].map(async asset=>({...asset,blob:await whitePhoto(asset.blob)})))};
         await assetStore(p.id+':final',final);savedFinal=final;p.title=final.title;p.description=final.description;p.finalKeys=[...chosen.keys()];p.finalSaved=true;p.reviewed=true;save();
         $('#post-posh').disabled=false;$('#review-status').textContent='Final photos and copy saved.';
       }catch(e){$('#review-status').textContent=e.message}
     };
+    $('#copy-listing').onclick=async()=>{try{await navigator.clipboard.writeText($('#review-title').value+'\n\n'+$('#review-copy').value);$('#review-status').textContent='Title and description copied together.'}catch(e){$('#review-status').textContent='Could not access clipboard. Select the text to copy manually.'}};
+    $('#quick-photos').onclick=()=>{if(!p.finalSaved){$('#review-status').textContent='Save the final item first, then choose photos to save.';return}$('#post-posh').click()};
     $('#post-posh').onclick=()=>{
       if(!p.finalSaved||!savedFinal){$('#review-status').textContent='Save the final item first.';return}
       const dialog=document.createElement('dialog');dialog.className='photo-editor';
