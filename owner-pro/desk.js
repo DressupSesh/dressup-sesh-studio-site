@@ -107,6 +107,9 @@
       put(key,text.match(re)?.[1]);
     }
     if(!p.department){if(/\bwomen(?:'s|’s)?\b|\bladies\b/i.test(text))put('department','Women');else if(/\bmen(?:'s|’s)?\b/i.test(text))put('department','Men');}
+    if(!p.department&&!/\b(kids?|girls?|boys?|baby|toddler|mens?|men’s|men's)\b/i.test(text)){
+      if(/^(?:Linda Allard )?Ellen Tracy$|^Bardot$/i.test(p.brand?.trim()||'')||/\b(?:maxi|midi|cocktail|evening|wedding)\s+(?:lace\s+)?(?:dress|gown)\b/i.test(text))put('department','Women');
+    }
     if(!p.size)put('size',text.match(/\bsize\s+(XXS|XS|XXL|XL|S|M|L|\d+(?:\.\d+)?)(?=\s|[,.;]|$)/i)?.[1]?.toUpperCase());
     if(!p.category&&p.department){
       const aliases={Dresses:/\bdress(?:es)?\b/i,Shorts:/\bshorts\b/i,Skirts:/\bskirts?\b/i,Jeans:/\bjeans\b/i,Sweaters:/\bsweaters?\b/i};
@@ -114,6 +117,16 @@
       if(matches.length===1)put('category',matches[0][0]);
     }
     put('size',text.match(/(?:tag )?size\s*:\s*([^\n]+)/i)?.[1]||text.match(/\bsize\s+(XXS|XS|XXL|XL|S|M|L|\d+(?:\.\d+)?)(?=\s|[,.;]|$)/i)?.[1]);
+  }
+  function updateCardTaxonomy(card,p){
+    for(const key of ['department','category','size']){
+      const current=card.querySelector('[data-field="'+key+'"]');if(!current)continue;
+      const options=key==='department'?Object.keys(C.taxonomy.departments):key==='category'?(C.taxonomy.departments[p.department]||[]):(C.taxonomy.sizes[p.category]||[]);
+      const select=document.createElement('select');select.dataset.field=key;select.setAttribute('aria-label',key+' for SKU '+p.sku);
+      const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=key==='category'&&!p.department?'Choose department first':key==='size'&&!p.category?'Choose category first':'Choose '+key;select.append(placeholder);
+      for(const value of options){const option=document.createElement('option');option.value=value;option.textContent=value;select.append(option)}
+      select.value=options.includes(String(p[key]))?p[key]:'';select.style.background=select.value?'':'#fff0cf';current.replaceWith(select);
+    }
   }
   function startOver(p){
     if([...scheduled].some(token=>token.startsWith(p.id))){alert('Wait for this item’s processing to finish before starting over. Other items are still available.');return}
@@ -193,7 +206,7 @@
   function render(){
     $('#piece-grid').innerHTML=state.pieces.map(p=>{
       fillDetails(p);if(p.finalSaved&&C.issues(p,allPieces()).length){p.finalSaved=false;p.reviewed=false;}const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
-      return `<article class="piece-card ${p.reviewed?'piece-reviewed':''}" data-id="${p.id}"><div class="piece-head"><h2>${esc(p.title||'New piece')}</h2><label class="inline-label"><input type="checkbox" data-select ${selected.has(p.id)?'checked':''}> Select</label></div><div class="piece-top"><label class="piece-photo">${ph.products.length?`<img src="${esc(ph.products[0].url)}" alt="Original item photo"><span>${ph.products.length} photo${ph.products.length===1?'':'s'} · replace</span>`:'<span aria-hidden="true">＋</span><span>Add item photos</span>'}<input class="visually-hidden" type="file" data-photos="products" accept="image/jpeg,image/png,image/webp" multiple></label><div class="quick-fields">${field(p,'title','Item / working title',{max:80})}${field(p,'brand','Brand')}${field(p,'size','Size')}${field(p,'price','Listing price ($)',{type:'number'})}</div></div>${p.originalsChecked&&p.missingOriginals?'<p class="field-note original-note">Original uploads unavailable on this device. Check Review for saved results. Reattach originals to run new processing.</p>':''}<div class="piece-actions"><button class="small-btn" data-run="clean">Clean photo</button><button class="small-btn" data-run="copy">Write copy</button><button class="small-btn" data-run="style">Style piece</button></div><p class="piece-status" role="status">${p.reviewed?'Reviewed by you':'Draft · review the facts before export'}</p><details><summary>Copy & reference photos</summary><label>Reference type<select data-ref-kind><option>Brand tag</option><option>Composition tag</option><option>Measurements</option><option>Condition / flaw</option><option>Other details</option></select></label><label>Reference photos<input type="file" data-photos="refs" accept="image/jpeg,image/png,image/webp" multiple></label><div class="ref-strip">${ph.refs.map(f=>`<img src="${esc(f.url)}" alt="${esc(f.kind)} reference">`).join('')}</div><p>References guide the copy. They are excluded from product photo exports.</p>${field(p,'color','Color')}<label>Condition, measurements and notes<textarea data-field="notes" rows="3">${esc(p.notes)}</textarea></label><label>Description<textarea data-field="description" rows="5">${esc(p.description)}</textarea></label><button class="small-btn" data-template>Build draft from typed facts</button><p class="field-note">Template only. No photo analysis or AI in this preview.</p></details><details><summary>Catalog & Poshmark fields</summary><div class="quick-fields">${field(p,'sku','Unique SKU')}${field(p,'department','Department (official value)')}${field(p,'category','Category (official value)')}${field(p,'quantity','Quantity',{type:'number'})}${field(p,'cost','Purchase cost ($)',{type:'number'})}${field(p,'location','Storage location')}</div><p>Copy department, category and size exactly from the current template’s Taxonomy tab. Do not guess original retail price.</p></details><label class="inline-label"><input type="checkbox" data-reviewed ${p.reviewed?'checked':''}> I reviewed this piece’s details</label></article>`;
+      return `<article class="piece-card ${p.reviewed?'piece-reviewed':''}" data-id="${p.id}"><div class="piece-head"><h2>${esc(p.title||'New piece')}</h2><label class="inline-label"><input type="checkbox" data-select ${selected.has(p.id)?'checked':''}> Select</label></div><div class="piece-top"><label class="piece-photo">${ph.products.length?`<img src="${esc(ph.products[0].url)}" alt="Original item photo"><span>${ph.products.length} photo${ph.products.length===1?'':'s'} · replace</span>`:'<span aria-hidden="true">＋</span><span>Add item photos</span>'}<input class="visually-hidden" type="file" data-photos="products" accept="image/jpeg,image/png,image/webp" multiple></label><div class="quick-fields">${field(p,'title','Item / working title',{max:80})}${field(p,'brand','Brand')}${field(p,'size','Size')}${field(p,'price','Listing price ($)',{type:'number'})}</div></div>${p.originalsChecked&&p.missingOriginals?'<p class="field-note original-note">Original uploads unavailable on this device. Check Review for saved results. Reattach originals to run new processing.</p>':''}<div class="piece-actions"><button class="small-btn" data-run="clean">Clean photo</button><button class="small-btn" data-run="copy">Write copy</button><button class="small-btn" data-run="style">Style piece</button></div><p class="piece-status" role="status">${p.reviewed?'Reviewed by you':'Draft · review the facts before export'}</p><details><summary>Copy & reference photos</summary><label>Reference type<select data-ref-kind><option>Brand tag</option><option>Composition tag</option><option>Measurements</option><option>Condition / flaw</option><option>Other details</option></select></label><label>Reference photos<input type="file" data-photos="refs" accept="image/jpeg,image/png,image/webp" multiple></label><div class="ref-strip">${ph.refs.map(f=>`<img src="${esc(f.url)}" alt="${esc(f.kind)} reference">`).join('')}</div><p>References guide the copy. They are excluded from product photo exports.</p>${field(p,'color','Color')}<label>Condition, measurements and notes<textarea data-field="notes" rows="3">${esc(p.notes)}</textarea></label><label>Description<textarea data-field="description" rows="5">${esc(p.description)}</textarea></label><button class="small-btn" data-template>Build draft from typed facts</button><p class="field-note">Template only. No photo analysis or AI in this preview.</p></details><details><summary>Catalog & Poshmark fields</summary><div class="quick-fields">${field(p,'sku','Unique SKU')}${field(p,'department','Department')}${field(p,'category','Category')}${field(p,'quantity','Quantity',{type:'number'})}${field(p,'cost','Purchase cost ($)',{type:'number'})}${field(p,'location','Storage location')}</div><p>Choose from the available options and review suggested details before saving.</p></details><label class="inline-label"><input type="checkbox" data-reviewed ${p.reviewed?'checked':''}> I reviewed this piece’s details</label></article>`;
     }).join('');
     layoutDesk();updateCount();renderCatalog();save();
   }
@@ -219,6 +232,7 @@
       fields.prepend(fields.querySelector('[data-field="brand"]').parentElement);
       fields.querySelector('[data-field="price"]').parentElement.hidden=true;
       fields.querySelector('[data-field="size"]').placeholder='Add size';
+      updateCardTaxonomy(card,p);
       const titleInput=fields.querySelector('[data-field="title"]'),titleArea=document.createElement('textarea');
       titleArea.dataset.field='title';titleArea.value=p.title;titleArea.rows=2;titleArea.maxLength=80;titleArea.setAttribute('aria-label','Item title');titleInput.replaceWith(titleArea);
       const fitTitle=()=>{titleArea.style.height='auto';titleArea.style.height=Math.max(38,titleArea.scrollHeight)+'px'};titleArea.addEventListener('input',fitTitle);requestAnimationFrame(fitTitle);
@@ -361,7 +375,7 @@
               const products=ph.products.slice(0,key==='copy'?8-refs.length:6);
               if(key==='copy'){
                 form.set('reference_count',String(refs.length));
-                form.set('additional_info',[p.brand&&'Brand: '+p.brand,p.title,p.size&&'Size: '+p.size,p.notes,...refs.map(r=>r.kind),'When a brand or size is legible on an uploaded label or explicitly supplied, include separate Brand: and Size: lines in the description. Do not guess; omit unknown values.'].filter(Boolean).join('\n'));
+                form.set('additional_info',[p.brand&&'Brand: '+p.brand,p.title,p.size&&'Size: '+p.size,p.notes,...refs.map(r=>r.kind),'When a brand or size is legible on an uploaded label or explicitly supplied, include separate Brand: and Size: lines in the description. Also include Department: and Category: lines when supported by the item photos and details. Department must be one of '+Object.keys(C.taxonomy.departments).join(', ')+'. Category must be one of the allowed categories for that department: '+JSON.stringify(C.taxonomy.departments)+'. Do not guess; omit unknown values.'].filter(Boolean).join('\n'));
               }else{
                 form.set('product_count',String(products.length));
                 form.set('type',({'On-body':'on_body','Editorial':'editorial'})[p.creative]||'ghost');
@@ -422,7 +436,7 @@
         const input=card.querySelector('[data-field="'+field+'"]');
         if(input && document.activeElement!==input){input.value=p[field];if(input.tagName==='TEXTAREA'){input.style.height='auto';input.style.height=Math.max(38,input.scrollHeight)+'px'}}
       }
-      
+      if(card)updateCardTaxonomy(card,p);
     }catch(e){p.progress[slot]={state:'error',message:label+' · '+e.message}}
     finally{paintProgress(p);save();renderCatalog()}
   }
@@ -441,6 +455,12 @@
   });
   $('#piece-grid').addEventListener('change',async e=>{
     const card=e.target.closest('[data-id]');if(!card)return;const p=state.pieces.find(x=>x.id===card.dataset.id);
+    if(['department','category','size'].includes(e.target.dataset.field)){
+      const key=e.target.dataset.field;p[key]=e.target.value;
+      if(key==='department'&&!C.taxonomy.departments[p.department]?.includes(p.category)){p.category='';p.size='';}
+      if(key==='category'&&!C.taxonomy.sizes[p.category]?.includes(String(p.size)))p.size='';
+      p.reviewed=false;p.finalSaved=false;updateCardTaxonomy(card,p);save();paintProgress(p);renderCatalog();
+    }
     if(e.target.hasAttribute('data-select')){e.target.checked?selected.add(p.id):selected.delete(p.id);updateCount();}
     if(e.target.hasAttribute('data-reviewed')){p.reviewed=e.target.checked;card.classList.toggle('piece-reviewed',p.reviewed);card.querySelector('.piece-status').textContent=p.reviewed?'Reviewed by you':'Draft · review before export';save();renderCatalog();}
     if(e.target.dataset.photos){
