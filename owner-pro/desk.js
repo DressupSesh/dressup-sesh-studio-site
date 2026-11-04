@@ -282,7 +282,7 @@
         for(const i of slots){
           const slot=key+':'+i, token=p.id+slot;
           if(p.deletedAssets?.[slot]||scheduled.has(token)||p.jobs?.[slot]?.complete&& (key==='copy'||results.has(token)))continue;
-          scheduled.add(token);p.progress||={};p.progress[slot]={state:'queued',message:key+' · queued'};
+          scheduled.add(token);if(!p.jobs?.[slot]?.complete)p.finalSaved=false;p.progress||={};p.progress[slot]={state:'queued',message:key+' · queued'};
           pending.push({p,ph,key,i,slot,token});paintProgress(p);
         }
       }
@@ -648,6 +648,7 @@
     $('#archive-item').onclick=()=>archiveItem(p);
     let savedFinal=await assetStore(p.id+':final');if(ticket!==reviewTicket)return;
     const chosen=new Map(),entries=new Map();
+    let displayedCopyJob=p.jobs?.['copy:0']?.complete?p.jobs['copy:0'].id:null;
     const updateTask=(key)=>{
       const entry=entries.get(key);if(!entry)return;const job=p.progress?.[key],busy=scheduled.has(p.id+key)||['queued','running'].includes(job?.state);
       if(entry.retry){entry.retry.disabled=busy;entry.meter.hidden=!busy;entry.meter.removeAttribute('value');if(!busy)setIcon(entry.retry,'retry','Regenerate '+entry.asset.label)}
@@ -697,8 +698,9 @@
     window.addEventListener('studio-job',e=>{
       if(e.detail.id!==p.id)return;for(const key of entries.keys())updateTask(key);
       const busy=scheduled.has(p.id+'copy:0');$('#retry-copy').disabled=busy;
-      if(p.progress?.['copy:0']?.state==='done'){
-        $('#review-title').value=p.title;$('#review-copy').value=p.description;growTitle();
+      if(p.progress?.['copy:0']?.state==='done'&&p.jobs?.['copy:0']?.id!==displayedCopyJob){
+        displayedCopyJob=p.jobs?.['copy:0']?.id;
+        if($('#review-title').value!==p.title)$('#review-title').value=p.title;if($('#review-copy').value!==p.description)$('#review-copy').value=p.description;growTitle();
       }
     },{signal:reviewEvents.signal});
     for(const key of Object.keys(p.assets||{}).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})))await upsertPhoto(key);
