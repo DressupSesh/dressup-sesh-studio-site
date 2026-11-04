@@ -154,10 +154,17 @@
     if(!box){box=document.createElement('div');box.className='job-progress';card.append(box)}
     const list=Object.values(p.progress||{}), done=list.filter(j=>j.state==='done').length;
     box.replaceChildren();
-    if(!list.length)return;
-    const text=document.createElement('p');text.textContent=done===list.length?'● Ready to review':done+' / '+list.length+' complete';
+    if(!list.length&&!C.active(p))return;
+    const text=document.createElement('p');text.textContent=list.length&&done===list.length?'● Ready to review':done+' / '+list.length+' complete';
     text.style.color=done===list.length?'#28743b':'inherit';box.append(text);
-    const bar=document.createElement('progress');bar.max=list.length;bar.value=done;box.append(bar);
+    for(const [index,key] of ['clean','copy','style'].entries()){
+      const row=card.querySelectorAll('.tool-row')[index];if(!row)continue;
+      let meter=row.querySelector('progress');if(!meter){meter=document.createElement('progress');row.append(meter)}
+      const tasks=Object.entries(p.progress||{}).filter(([slot])=>slot.startsWith(key+':'));
+      meter.max=tasks.length||1;meter.value=tasks.filter(([,j])=>j.state==='done').length;
+      meter.setAttribute('aria-label',key+' progress');
+    }
+    const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton);
     for(const [slot,item] of Object.entries(p.progress)){
       const line=document.createElement('p');line.textContent=item.message;box.append(line);
       const output=results.get(p.id+slot);if(output)line.append(output);
@@ -264,6 +271,7 @@
             let blob;
             if(key==='clean')blob=await result.blob();
             else{const data=await result.json();if(!data.image)throw Error('Missing creative output.');blob=new Blob([Uint8Array.from(atob(data.image),c=>c.charCodeAt(0))],{type:data.mimeType||'image/jpeg'});}
+            if(!job.complete || !p.assets?.[slot])await rememberAsset(p,slot,blob,label);
             const a=document.createElement('a');a.href=photoURL(blob);a.download=p.sku+'-'+key+'-'+(i+1)+(blob.type.includes('png')?'.png':'.jpg');a.textContent='Download image';
             line.textContent=label+' — ';line.append(a);
           }
@@ -289,7 +297,7 @@
     const card=e.target.closest('[data-id]');if(!card)return;const p=state.pieces.find(x=>x.id===card.dataset.id);
     if(e.target.dataset.field){p[e.target.dataset.field]=e.target.value;p.reviewed=false;card.classList.remove('piece-reviewed');card.querySelector('[data-reviewed]').checked=false;card.querySelector('.piece-status').textContent='Changed · review this piece again';if(e.target.dataset.field==='title'){card.querySelector('h2').textContent=p.title||'New piece';if(focusId===p.id)$('#edit-title').value=p.title;}save();updateCount();renderCatalog();}
   });
-  $('#piece-grid').addEventListener('change',e=>{
+  $('#piece-grid').addEventListener('change',async e=>{
     const card=e.target.closest('[data-id]');if(!card)return;const p=state.pieces.find(x=>x.id===card.dataset.id);
     if(e.target.hasAttribute('data-select')){e.target.checked?selected.add(p.id):selected.delete(p.id);updateCount();}
     if(e.target.hasAttribute('data-reviewed')){p.reviewed=e.target.checked;card.classList.toggle('piece-reviewed',p.reviewed);card.querySelector('.piece-status').textContent=p.reviewed?'Reviewed by you':'Draft · review before export';save();renderCatalog();}
@@ -301,6 +309,10 @@
       if(p.jobs && Object.keys(p.jobs).length){
         if(!confirm('Replacing photos starts a new generation set for the affected tools. Download any previous images first.'))return;
         if(key==='products')p.jobs={};else delete p.jobs['copy:0'];
+      }
+      if(key==='products'){
+        try{for(const [index,file] of files.entries())await rememberAsset(p,'original:'+index,file,'Original '+(index+1))}
+        catch(error){alert('Photos could not be saved on this device: '+error.message);return}
       }
       ph[key]=files.map(f=>({name:f.name,url:photoURL(f),kind,file:f}));sessionPhotos.set(p.id,ph);
       p[key==='products'?'photoNames':'referenceNames']=files.map(f=>f.name);p.reviewed=false;selected.add(p.id);render();
@@ -417,6 +429,116 @@
   };
   showExport();
 
+  const assetDb=new Promise((resolve,reject)=>{
+    const request=indexedDB.open('studio-pro-assets-'+ownerId,1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('assets');
+    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+  });
+  async function assetStore(key,value){
+    const db=await assetDb;
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('assets',value===undefined?'readonly':'readwrite'),table=tx.objectStore('assets');
+      const request=value===undefined?table.get(key):table.put(value,key);
+      tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+    });
+  }
+  async function rememberAsset(p,key,blob,label){
+    await assetStore(p.id+':'+key,{blob,label,key});
+    p.assets||={};p.assets[key]=label;p.finalSaved=false;save();
+  }
+  const review=document.createElement('section');review.id='asset-review';review.hidden=true;document.body.append(review);
+  let reviewTicket=0;
+  function reviewUrl(p){location.hash='review='+p.id}
+  async function openReview(){
+    const id=new URLSearchParams(location.hash.slice(1)).get('review');
+    const p=[...state.pieces,...state.archive].find(x=>x.id===id),ticket=++reviewTicket;
+    review.hidden=!p;$('#main').hidden=!!p;document.querySelector('.pro-dock').hidden=!!p;
+    if(!p)return;
+    review.innerHTML='<button id="back-studio">← Studio</button><h1>Review SKU '+esc(p.sku)+'</h1><p>Choose every photo you want to post. Saved photos and copy are stored on this device.</p><label>Title<input id="review-title"></label><label>Description<textarea id="review-copy" rows="7"></textarea></label><div id="asset-grid"></div><button id="save-final">Save final item</button><button id="post-posh">Post to Poshmark</button><p id="review-status" role="status"></p>';
+    $('#back-studio').onclick=()=>{location.hash='';render()};
+    $('#review-title').value=p.title;$('#review-copy').value=p.description;
+    const invalidate=()=>{p.finalSaved=false;$('#post-posh').disabled=true;save()};
+    $('#review-title').oninput=()=>{p.title=$('#review-title').value;invalidate()};
+    $('#review-copy').oninput=()=>{p.description=$('#review-copy').value;invalidate()};
+    let savedFinal=await assetStore(p.id+':final');
+    const chosen=new Map();
+    for(const key of Object.keys(p.assets||{})){
+      const asset=await assetStore(p.id+':'+key);if(ticket!==reviewTicket)return;if(!asset)continue;
+      const box=document.createElement('article'),check=document.createElement('input'),label=document.createElement('label'),img=new Image();
+      check.type='checkbox';check.checked=p.finalKeys?p.finalKeys.includes(key):true;
+      label.append(check,document.createTextNode(' '+asset.label));img.src=photoURL(asset.blob);img.alt=asset.label;
+      box.append(label,img);$('#asset-grid').append(box);
+      if(check.checked)chosen.set(key,asset);
+      check.onchange=()=>{check.checked?chosen.set(key,asset):chosen.delete(key);invalidate()};
+      const edit=document.createElement('button');edit.textContent='Edit photo';box.append(edit);
+      edit.onclick=()=>editAsset(asset,async blob=>{
+        await rememberAsset(p,key,blob,asset.label);asset.blob=blob;img.src=photoURL(blob);
+        if(check.checked)chosen.set(key,asset);invalidate();
+      });
+      if(key.startsWith('clean:')){
+        const retry=document.createElement('button');retry.textContent='Regenerate';box.append(retry);
+        retry.onclick=async()=>{
+          const slot=key,i=Number(slot.split(':')[1]),token=p.id+slot;
+          if(scheduled.has(token)){ $('#review-status').textContent='This photo is already processing.';return }
+          if((p.retries?.[slot]||0)>=3){$('#review-status').textContent='Three retries used for this photo.';return}
+          const original=await assetStore(p.id+':original:'+i);
+          if(!original){$('#review-status').textContent='Reattach the original photo in Studio to regenerate.';return}
+          const ph={products:[],refs:[]};ph.products[i]={file:original.blob};
+          p.retries||={};p.retries[slot]=(p.retries[slot]||0)+1;delete p.jobs[slot];
+          p.progress||={};p.progress[slot]={state:'queued',message:'Remove · retry queued'};scheduled.add(token);
+          pending.push({p,ph,key:'clean',i,slot,token});invalidate();pump();
+          $('#review-status').textContent='Regenerating. Return to Studio to follow progress, then reopen this review. Account usage rules apply.';
+        };
+      }
+    }
+    $('#post-posh').disabled=!p.finalSaved;
+    $('#save-final').onclick=async()=>{
+      try{
+        if(!chosen.size)throw Error('Select at least one photo.');
+        const final={title:$('#review-title').value,description:$('#review-copy').value,assets:[...chosen.values()]};
+        await assetStore(p.id+':final',final);savedFinal=final;p.title=final.title;p.description=final.description;p.finalKeys=[...chosen.keys()];p.finalSaved=true;p.reviewed=true;save();
+        $('#post-posh').disabled=false;$('#review-status').textContent='Final photos and copy saved.';
+      }catch(e){$('#review-status').textContent=e.message}
+    };
+    $('#post-posh').onclick=async()=>{
+      const button=$('#post-posh');button.disabled=true;
+      try{
+        const final=savedFinal;if(!p.finalSaved||!final)throw Error('Save the final item first.');
+        const text=final.title+'\n\n'+final.description;
+        await navigator.clipboard.writeText(text);
+        const zip=new JSZip();
+        final.assets.forEach((a,i)=>zip.file(p.sku+'-'+(i===0?'CS':i)+(a.blob.type.includes('png')?'.png':'.jpg'),a.blob));
+        const blob=await zip.generateAsync({type:'blob'});
+        download(p.sku+'-final-photos.zip',blob,'application/zip');
+        const link=document.createElement('a');link.href='https://poshmark.com/create-listing';link.target='_blank';link.rel='noopener';link.textContent='Open Poshmark and paste your listing';
+        $('#review-status').replaceChildren(document.createTextNode('All saved photos downloaded as a ZIP and copy is on your clipboard. Unzip the photos, then upload them in Poshmark. '),link);
+        window.open(link.href,'_blank','noopener');
+      }catch(e){$('#review-status').textContent='Could not finish the handoff: '+e.message}
+      finally{button.disabled=false}
+    };
+  }
+  function editAsset(asset,onSave){
+    const dialog=document.createElement('dialog');dialog.className='photo-editor';
+    dialog.innerHTML='<p>Brush to erase background or restore pixels. Adjust the brush size for edges.</p><select id="brush-mode"><option value="erase">Erase</option><option value="restore">Restore</option></select><input id="brush-size" type="range" min="2" max="120" value="25" aria-label="Brush size"><canvas></canvas><button id="reset-photo">Reset</button><button id="save-photo">Save edit</button><button id="cancel-photo">Cancel</button>';
+    document.body.append(dialog);dialog.showModal();
+    const canvas=dialog.querySelector('canvas'),ctx=canvas.getContext('2d'),original=new Image();
+    original.onload=()=>{canvas.width=original.naturalWidth;canvas.height=original.naturalHeight;ctx.drawImage(original,0,0)};
+    original.src=photoURL(asset.blob);
+    let down=false;
+    function brush(e){
+      if(!down)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*canvas.width/r.width,y=(e.clientY-r.top)*canvas.height/r.height,radius=Number(dialog.querySelector('#brush-size').value)*canvas.width/r.width/2;
+      ctx.save();ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.clip();
+      if(dialog.querySelector('#brush-mode').value==='erase')ctx.clearRect(0,0,canvas.width,canvas.height);else ctx.drawImage(original,0,0);
+      ctx.restore();
+    }
+    canvas.onpointerdown=e=>{down=true;canvas.setPointerCapture(e.pointerId);brush(e)};canvas.onpointermove=brush;
+    canvas.onpointerup=canvas.onpointercancel=()=>down=false;
+    dialog.querySelector('#reset-photo').onclick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(original,0,0)};
+    dialog.querySelector('#save-photo').onclick=()=>canvas.toBlob(async blob=>{if(blob){await onSave(blob);dialog.remove()}},'image/png');
+    dialog.querySelector('#cancel-photo').onclick=()=>dialog.remove();
+    dialog.oncancel=()=>dialog.remove();
+  }
+  window.addEventListener('hashchange',()=>openReview().catch(console.error));
   const dock=document.createElement('div');dock.className='pro-dock';
   dock.innerHTML='<button type="button" id="add-skus">+ 10 SKUs</button><button type="button" id="run-floating">Run selected</button>';
   document.body.append(dock);
@@ -434,4 +556,5 @@
     paintProgress(p);
   }
   pump();
+  openReview().catch(console.error);
 })();
