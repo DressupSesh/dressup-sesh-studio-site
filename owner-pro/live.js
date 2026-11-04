@@ -13,7 +13,7 @@ async function startOwnerDesk(){
   ownerClient.auth.onAuthStateChange((event,current)=>{
     if(!current || current.user.id!==ownerId)location.replace('/studio.html');
   });
-  const script=document.createElement('script');script.src='desk.js?v=review-white-undo';
+  const script=document.createElement('script');script.src='desk.js?v=multi-select-save';
   script.onload=()=>{document.querySelector('#main').hidden=false;document.querySelector('#gate').hidden=true;};
   document.body.append(script);
 }
