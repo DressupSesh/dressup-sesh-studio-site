@@ -136,6 +136,7 @@
       card.onclick=()=>{focusId=p.id;grid.querySelectorAll('.current').forEach(c=>c.classList.remove('current'));card.classList.add('current');showReview(p)};
     });
     state.pieces.forEach(paintProgress);
+    state.pieces.forEach(p=>paintThumbnail(p).catch(console.error));
     showReview(state.pieces.find(p=>p.id===focusId)||state.pieces[0]);
   }
   function showReview(p){
@@ -442,9 +443,23 @@
       tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
     });
   }
+  const thumbCache=new Map();
+  async function paintThumbnail(p){
+    if(!p.assets?.['clean:0'])return;
+    let url=thumbCache.get(p.id);
+    if(!url){
+      const asset=await assetStore(p.id+':clean:0');if(!asset)return;
+      url=photoURL(asset.blob);thumbCache.set(p.id,url);
+    }
+    const photo=$('[data-id="'+p.id+'"] .piece-photo');if(!photo)return;
+    let img=photo.querySelector('img');
+    if(!img){img=new Image();photo.prepend(img)}
+    img.src=url;img.alt='Background removed cover for SKU '+p.sku;
+  }
   async function rememberAsset(p,key,blob,label){
     await assetStore(p.id+':'+key,{blob,label,key});
     p.assets||={};p.assets[key]=label;p.finalSaved=false;save();
+    if(key==='clean:0'){thumbCache.delete(p.id);await paintThumbnail(p)}
   }
   const review=document.createElement('section');review.id='asset-review';review.hidden=true;document.body.append(review);
   let reviewTicket=0;
@@ -500,21 +515,45 @@
         $('#post-posh').disabled=false;$('#review-status').textContent='Final photos and copy saved.';
       }catch(e){$('#review-status').textContent=e.message}
     };
-    $('#post-posh').onclick=async()=>{
-      const button=$('#post-posh');button.disabled=true;
-      try{
-        const final=savedFinal;if(!p.finalSaved||!final)throw Error('Save the final item first.');
-        const text=final.title+'\n\n'+final.description;
-        await navigator.clipboard.writeText(text);
-        const zip=new JSZip();
-        final.assets.forEach((a,i)=>zip.file(p.sku+'-'+(i===0?'CS':i)+(a.blob.type.includes('png')?'.png':'.jpg'),a.blob));
-        const blob=await zip.generateAsync({type:'blob'});
-        download(p.sku+'-final-photos.zip',blob,'application/zip');
-        const link=document.createElement('a');link.href='https://poshmark.com/create-listing';link.target='_blank';link.rel='noopener';link.textContent='Open Poshmark and paste your listing';
-        $('#review-status').replaceChildren(document.createTextNode('All saved photos downloaded as a ZIP and copy is on your clipboard. Unzip the photos, then upload them in Poshmark. '),link);
-        window.open(link.href,'_blank','noopener');
-      }catch(e){$('#review-status').textContent='Could not finish the handoff: '+e.message}
-      finally{button.disabled=false}
+    $('#post-posh').onclick=()=>{
+      if(!p.finalSaved||!savedFinal){$('#review-status').textContent='Save the final item first.';return}
+      const dialog=document.createElement('dialog');dialog.className='photo-editor';
+      dialog.innerHTML='<h2>Save photos for Poshmark</h2><p>Select photos, then choose where to save them.</p><div class="handoff-photos"></div><button class="phone-save">Save / share to phone</button><button class="zip-save">Download ZIP</button><p class="handoff-status" role="status"></p><button class="continue-posh">Copy listing &amp; open Poshmark</button><button class="cancel-handoff">Cancel</button>';
+      const selectedFiles=new Map();
+      savedFinal.assets.forEach((asset,i)=>{
+        const file=new File([asset.blob],p.sku+'-'+(i===0?'CS':i)+(asset.blob.type.includes('png')?'.png':'.jpg'),{type:asset.blob.type||'image/jpeg'});
+        selectedFiles.set(i,file);
+        const label=document.createElement('label'),check=document.createElement('input'),img=new Image();
+        check.type='checkbox';check.checked=true;check.onchange=()=>check.checked?selectedFiles.set(i,file):selectedFiles.delete(i);
+        img.src=photoURL(asset.blob);img.alt=asset.label;img.style.cssText='width:80px;height:95px;object-fit:contain';
+        label.append(check,img,document.createTextNode(asset.label));dialog.querySelector('.handoff-photos').append(label);
+      });
+      const status=dialog.querySelector('.handoff-status');
+      dialog.querySelector('.phone-save').onclick=async()=>{
+        const files=[...selectedFiles.values()];if(!files.length){status.textContent='Select at least one photo.';return}
+        if(!navigator.canShare?.({files})){status.textContent='Photo sharing is unavailable in this browser. Use Download ZIP.';return}
+        try{
+          await navigator.share({files});
+          status.textContent='Photo share sheet closed. Continue when your photos are saved.';
+        }catch(e){status.textContent=e.name==='AbortError'?'Photo saving cancelled. Choose an option when ready.':'Could not share photos. Try Download ZIP.'}
+      };
+      dialog.querySelector('.zip-save').onclick=async()=>{
+        if(!selectedFiles.size){status.textContent='Select at least one photo.';return}
+        try{const zip=new JSZip();for(const file of selectedFiles.values())zip.file(file.name,file);
+          download(p.sku+'-final-photos.zip',await zip.generateAsync({type:'blob'}),'application/zip');
+          status.textContent='ZIP downloaded. Extract the photos before selecting them in Poshmark.';
+        }catch(e){status.textContent='Download failed. '+e.message}
+      };
+      dialog.querySelector('.continue-posh').onclick=async()=>{
+        try{
+          await navigator.clipboard.writeText(savedFinal.title+'\n\n'+savedFinal.description);
+          status.textContent='Listing copied. ';
+          const link=document.createElement('a');link.href='https://poshmark.com/create-listing';link.target='_blank';link.rel='noopener';link.textContent='Open Poshmark';
+          status.append(link);window.open(link.href,'_blank','noopener');
+        }catch(e){status.textContent='Clipboard unavailable. Copy the title and description from the review page.'}
+      };
+      dialog.querySelector('.cancel-handoff').onclick=()=>dialog.remove();dialog.oncancel=()=>dialog.remove();
+      document.body.append(dialog);dialog.showModal();
     };
   }
   function editAsset(asset,onSave){
