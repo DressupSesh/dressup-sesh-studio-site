@@ -29,3 +29,6 @@ body.conversion-page{background:#f7f5ef;color:#20201e}.rev-header,.review-bar,.r
 .desk .desk-tools{grid-template-columns:1fr;align-content:start}.tool-row{display:flex;align-items:center;justify-content:space-between}.desk .tool-row button{background:transparent;border:0;min-width:26px;min-height:28px}.tool-row button[aria-expanded=true]{transform:rotate(180deg)}.desk .desk-tools [hidden]{display:none!important}.desk-tools select{width:100%}.desk .piece-card:not(.vacant)>details.listing-fields{display:block!important}.listing-fields summary{cursor:pointer}
 
 [hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}.visually-hidden{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden}#gate{padding:2rem}
+.pro-dock{position:fixed;bottom:0;left:0;right:0;z-index:20;display:flex;justify-content:center;gap:12px;padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:#f7f5ef;border-top:1px solid #aaa}
+.pro-dock button{padding:12px 18px;border:0;background:#393835;color:white}
+body{padding-bottom:100px}.job-progress progress{width:100%;accent-color:#28743b}.job-progress p{font:12px Arial;overflow-wrap:anywhere}.job-progress a{display:block;padding:8px 0}
