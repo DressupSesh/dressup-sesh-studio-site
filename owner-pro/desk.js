@@ -221,6 +221,7 @@
       selection.className='sku-selection';selection.lastChild.textContent=' Select';
       selection.querySelector('input').setAttribute('aria-label','Select SKU '+p.sku);
       skuRow.append(sku,selection);card.prepend(skuRow);
+      for(const note of card.querySelectorAll(':scope > .field-note')){const message=note.textContent;const info=iconButton('info','Photo information for SKU '+p.sku,e=>{e.stopPropagation();alert(message)});info.classList.add('card-info');skuRow.append(info);note.remove();}
       if(Number.isInteger(p.sample)&&!sessionPhotos.get(p.id)?.products.length){
         photo.querySelectorAll('span').forEach(x=>x.remove());
         const im=new Image();im.src='piece-'+p.sample+'.png';im.alt=p.title;photo.prepend(im);
@@ -235,7 +236,7 @@
       updateCardTaxonomy(card,p);
       const titleInput=fields.querySelector('[data-field="title"]'),titleArea=document.createElement('textarea');
       titleArea.dataset.field='title';titleArea.value=p.title;titleArea.rows=2;titleArea.maxLength=80;titleArea.setAttribute('aria-label','Item title');titleInput.replaceWith(titleArea);
-      const fitTitle=()=>{titleArea.style.height='auto';titleArea.style.height=Math.max(38,titleArea.scrollHeight)+'px'};titleArea.addEventListener('input',fitTitle);requestAnimationFrame(fitTitle);
+      titleArea.className='studio-title-preview';titleArea.readOnly=true;titleArea.setAttribute('aria-label','Title preview; open Review to edit the full title');titleArea.onclick=()=>reviewUrl(p);titleArea.parentElement.firstChild.textContent='Title';
 
       const controls=document.createElement('div');controls.className='desk-tools';
       const setup = [
@@ -292,7 +293,7 @@
     const list=Object.values(p.progress||{}), done=list.filter(j=>j.state==='done').length;
     box.replaceChildren();
     if(!list.length&&!C.active(p))return;
-    const text=document.createElement('p');text.textContent=p.finalSaved?'✓ Item saved':'● Ready to review';text.style.color='#28743b';if(done||p.finalSaved)box.append(text);
+    const text=document.createElement('p');text.textContent=p.finalSaved?'✓ Item saved':'● Ready to review';text.style.color='#28743b';if(done&&!p.finalSaved)box.append(text);if(p.finalSaved){const saved=iconButton('check','Saved SKU '+p.sku+' — review saved item',e=>{e.stopPropagation();reviewUrl(p)});saved.classList.add('saved-indicator');box.append(saved);}
     for(const [index,key] of ['clean','copy','style'].entries()){
       const row=card.querySelectorAll('.tool-row')[index];if(!row)continue;
       let meter=row.querySelector('progress');if(!meter){meter=document.createElement('progress');row.append(meter)}
@@ -312,7 +313,7 @@
     }
     const reset=document.createElement('button');reset.textContent='Start over';reset.onclick=e=>{e.stopPropagation();startOver(p)};
     const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton,reset);
-    const post=iconButton('posh','Post SKU '+p.sku+' to Poshmark',async e=>{e.stopPropagation();try{const final=await assetStore(p.id+':final');if(final&&p.finalSaved){post.disabled=true;acknowledge(post,'Preparing saved item');try{await openPosh(p,final)}finally{post.disabled=false}}else alert('Review and save this item first.')}catch(error){alert(error.message)}});post.disabled=!p.finalSaved;box.append(post);
+    const post=iconButton('posh','Post SKU '+p.sku+' to Poshmark',async e=>{e.stopPropagation();try{const final=await assetStore(p.id+':final');if(final&&p.finalSaved){post.disabled=true;acknowledge(post,'Preparing saved item');try{await openPosh(p,final)}finally{post.disabled=false}}else alert('Review and save this item first.')}catch(error){alert(error.message)}});if(p.finalSaved)box.append(post);
     if(p.finalSaved){const archived=state.archive.some(item=>item.id===p.id);if(!archived){const archive=iconButton('archive','Archive saved SKU '+p.sku,e=>{e.stopPropagation();archiveItem(p)});archive.disabled=itemBusy(p);box.append(archive)}}
     card.querySelectorAll('[data-photos]').forEach(input=>input.disabled=list.some(x=>x.state==='running'||x.state==='queued'));
   }
@@ -434,7 +435,7 @@
       const card=$('[data-id="'+p.id+'"]');
       if(card)for(const field of ['title','brand','size']){
         const input=card.querySelector('[data-field="'+field+'"]');
-        if(input && document.activeElement!==input){input.value=p[field];if(input.tagName==='TEXTAREA'){input.style.height='auto';input.style.height=Math.max(38,input.scrollHeight)+'px'}}
+        if(input && document.activeElement!==input){input.value=p[field];}
       }
       if(card)updateCardTaxonomy(card,p);
     }catch(e){p.progress[slot]={state:'error',message:label+' · '+e.message}}
@@ -644,6 +645,12 @@
 .desk .piece-card{align-self:start;min-width:0}.desk .quick-fields label{display:grid;grid-template-columns:1fr;gap:3px;min-width:0}.desk .quick-fields input,.desk .quick-fields textarea{width:100%!important;margin:0;min-width:0;box-sizing:border-box}.desk .quick-fields textarea{padding:4px 5px;font:12px Arial;line-height:1.35;resize:vertical;overflow-wrap:anywhere;white-space:pre-wrap}
 .desk .tool-row{display:grid;grid-template-columns:minmax(0,1fr) 32px;gap:3px}.desk .tool-row label{min-width:0;white-space:nowrap}.desk .tool-row .studio-icon{width:32px!important;min-width:32px!important;padding:5px!important;height:36px}.desk .tool-row progress{width:100%;grid-column:1;max-width:none;margin:0;height:7px}.desk .tool-row>span{font-size:10px;white-space:nowrap}.desk .desk-tools{gap:5px}.desk .original-note{font-size:11px;line-height:1.4!important;margin:8px 0}.desk .job-progress{display:flex;flex-wrap:wrap;gap:4px}.desk .job-progress>p{flex-basis:100%;margin:6px 0}.desk .piece-photo img{padding:5px}
 @media(max-width:580px){.desk{padding:12px 10px}.desk .piece-grid{gap:10px}.desk .piece-card{padding:9px}.desk .piece-top{grid-template-columns:1fr}.desk .piece-card input:not([type=checkbox]),.desk .piece-card textarea,.desk .piece-card select{font-size:16px}.desk .quick-fields label{font-size:12px}.desk .sku input{width:76px;max-width:100%}.desk .sku-row{gap:5px}.desk .piece-photo{width:100%}.desk .piece-card details{margin-top:8px;padding-top:8px}.desk .piece-card summary{font-size:12px;margin-bottom:6px}#asset-review{padding:16px}#asset-review h1{font-size:36px}#listing-details{min-width:0}#listing-details label{display:block;margin:10px 0}#listing-details select{width:100%;min-width:0;font-size:16px}}
+
+.desk .quick-fields textarea.studio-title-preview{height:calc(2.7em + 10px)!important;min-height:0!important;max-height:calc(2.7em + 10px)!important;line-height:1.35;overflow:hidden;resize:none;cursor:pointer}
+.desk .sku-row .card-info{width:24px!important;min-width:24px!important;height:24px;padding:3px!important;background:transparent}.desk .job-progress .saved-indicator{color:#28743b!important}.desk .job-progress{align-items:center;margin-top:6px}.desk .job-progress>p{font-size:11px;line-height:1.2;margin:3px 0}
+@media(max-width:580px){
+.desk .piece-card{padding:8px}.desk .piece-top{margin:6px 0}.desk .piece-card .piece-photo{max-width:min(100%,140px);margin-inline:auto}.desk .sku-row{gap:3px}.desk .sku-selection{font-size:11px!important}.desk .piece-card .sku{font-size:11px}.desk .sku input{padding:2px 4px;width:62px;font-size:14px!important}.desk .desk-tools{gap:1px}.desk .tool-row{column-gap:3px;row-gap:0}.desk .tool-row label{font-size:12px}.desk .tool-row .studio-icon{height:28px;min-height:28px}.desk .tool-row progress{height:5px}.desk .tool-row .photo-progress-count{font-size:10px!important}.desk .quick-fields{gap:4px}.desk .quick-fields label{gap:2px;font-size:11px}.desk .quick-fields input,.desk .quick-fields select{height:27px;padding:2px 4px}.desk .piece-card summary{font-size:11px;margin-bottom:4px}.desk .piece-card details{margin-top:6px;padding-top:6px}.desk .job-progress{gap:2px}.desk .job-progress .studio-icon{width:36px!important;min-width:36px!important;height:36px;padding:7px!important}.desk .piece-card .listing-fields p{display:none}
+}
 `;document.head.append(selectionStyle);
   async function restorePhotos(p){
     const ph=sessionPhotos.get(p.id)||{products:[],refs:[]};
