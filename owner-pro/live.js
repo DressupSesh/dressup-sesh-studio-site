@@ -2,16 +2,16 @@ const ownerClient = window.supabase.createClient(DRESSUP_CONFIG.supabaseUrl,DRES
 let ownerId;
 async function ownerSession(){
   const {data:{session}}=await ownerClient.auth.getSession();
-  if(!session || (ownerId && session.user.id!==ownerId))throw Error('Sign in to the owner Back Room first.');
-  const role=await ownerClient.rpc('is_backroom_owner');
-  if(role.error || role.data!==true)throw Error('Verify your owner account in the Back Room.');
+  if(!session || (ownerId && session.user.id!==ownerId))throw Error('Sign in to Studio with your owner account.');
+  const role=await ownerClient.rpc('is_backroom_owner_role');
+  if(role.error || role.data!==true)throw Error('Batch Pro is available to the Studio owner account.');
   return session;
 }
 async function startOwnerDesk(){
   const session=await ownerSession();
   ownerId=session.user.id;
   ownerClient.auth.onAuthStateChange((event,current)=>{
-    if(!current || current.user.id!==ownerId)location.replace('/studio-backroom.html');
+    if(!current || current.user.id!==ownerId)location.replace('/studio.html');
   });
   const script=document.createElement('script');script.src='desk.js';
   script.onload=()=>{document.querySelector('#main').hidden=false;document.querySelector('#gate').hidden=true;};
