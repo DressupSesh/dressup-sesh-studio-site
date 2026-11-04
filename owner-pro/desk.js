@@ -178,7 +178,7 @@
     posh:'<path d="M5 8h14l2 13H3ZM8 8V6a4 4 0 0 1 8 0v2"/><path d="M10 18v-7h3a2 2 0 0 1 0 4h-3"/>',
     back:'<path d="m10 5-7 7 7 7M3 12h18"/>',close:'<path d="m5 5 14 14M19 5 5 19"/>',
     add:'<path d="M12 3v18M3 12h18"/>',grid:'<path d="M3 3h7v7H3Zm11 0h7v7h-7ZM3 14h7v7H3Zm11 0h7v7h-7Z"/>',
-    export:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',chevron:'<path d="m6 9 6 6 6-6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10v7m0-11v1"/>'
+    posted:'<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',unposted:'<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7" opacity=".3"/>',export:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',chevron:'<path d="m6 9 6 6 6-6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10v7m0-11v1"/>'
   };
   function setIcon(button,key,label){
     button.type='button';button.dataset.icon=key;button.dataset.label=label;button.title=label;button.setAttribute('aria-label',label);
@@ -305,7 +305,7 @@
       listingFields.querySelector('summary').textContent='Listing details';
       listingFields.querySelector('.quick-fields').append(priceLabel);
       for(const key of ['color','color2']){const label=card.querySelector('[data-field="'+key+'"]').parentElement;listingFields.querySelector('.quick-fields').append(label);}
-      card.onclick=()=>{focusId=p.id;grid.querySelectorAll('.current').forEach(c=>c.classList.remove('current'));card.classList.add('current');showReview(p)};
+      card.onclick=()=>{focusId=p.id;grid.querySelectorAll('.current').forEach(c=>c.classList.remove('current'));card.classList.add('current');updateCount();showReview(p)};
     });
     state.pieces.forEach(paintProgress);
     state.pieces.forEach(p=>paintThumbnail(p).catch(console.error));
@@ -360,20 +360,21 @@
     }
     if(!p.finalSaved){const saveButton=iconButton('save','Save SKU '+p.sku,e=>{e.stopPropagation();saveStudioItem(p,saveButton)});saveButton.disabled=itemBusy(p);box.append(saveButton);}
     const reset=document.createElement('button');reset.textContent='Start over';reset.onclick=e=>{e.stopPropagation();startOver(p)};
-    const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.append(reviewButton,reset);
-    if(p.finalSaved){const posted=iconButton(p.posted?'check':'posh',p.posted?'Marked posted — mark SKU '+p.sku+' not posted':'Mark SKU '+p.sku+' as posted',e=>{e.stopPropagation();p.posted=!p.posted;p.postedAt=p.posted?Date.now():null;save();paintProgress(p);renderCatalog()});posted.setAttribute('aria-pressed',String(!!p.posted));box.append(posted);}
+    const reviewButton=document.createElement('button');reviewButton.textContent='Review item';reviewButton.onclick=e=>{e.stopPropagation();reviewUrl(p)};box.prepend(reviewButton);reset.className="start-over-action";
+    if(p.finalSaved){const posted=iconButton(p.posted?'posted':'unposted',p.posted?'Marked posted — mark SKU '+p.sku+' not posted':'Mark SKU '+p.sku+' as posted',e=>{e.stopPropagation();p.posted=!p.posted;p.postedAt=p.posted?Date.now():null;save();paintProgress(p);renderCatalog()});posted.setAttribute('aria-pressed',String(!!p.posted));box.append(posted);}
     const post=iconButton('posh','Quick Post SKU '+p.sku+' to Poshmark',async e=>{e.stopPropagation();try{const final=await assetStore(p.id+':final');if(final&&p.finalSaved){post.disabled=true;acknowledge(post,'Preparing saved item');try{await openPosh(p,final)}finally{post.disabled=false}}else alert('Review and save this item first.')}catch(error){alert(error.message)}});if(p.finalSaved)box.append(post);
     if(p.finalSaved){const archived=state.archive.some(item=>item.id===p.id);if(!archived){const archive=iconButton('archive','Archive saved SKU '+p.sku,e=>{e.stopPropagation();archiveItem(p)});archive.disabled=itemBusy(p);box.append(archive)}}
     if(card.dataset.photoNotice){const info=iconButton('info','Photo information for SKU '+p.sku,e=>{e.stopPropagation();alert(card.dataset.photoNotice)});info.classList.add('card-info');box.append(info);}
+    box.append(reset);
     card.querySelectorAll('[data-photos]').forEach(input=>input.disabled=list.some(x=>x.state==='running'||x.state==='queued'));
   }
   async function runLive(){
     if(submitting)return;
-    if(!state.pieces.some(p=>C.active(p)&&selected.has(p.id))){alert('Select one or more SKUs first.');return}
+    if(!state.pieces.some(p=>C.active(p)&&(selected.size?selected.has(p.id):p.id===focusId))){alert('Select one or more SKUs first.');return}
     submitting=true;
     for(const id of ['run-desk','run-floating']){const button=$('#'+id);if(button){button.disabled=true;setIcon(button,'check','Run request received')}}
     try{await ownerSession();
-    for(const p of state.pieces.filter(p=>C.active(p)&&selected.has(p.id))){
+    for(const p of state.pieces.filter(p=>C.active(p)&&(selected.size?selected.has(p.id):p.id===focusId))){
       const ph=await restorePhotos(p);
       for(const key of ['clean','copy','style'].filter(k=>p[k])){
         const slots=key==='clean'?Array.from({length:Math.max(1,p.photoNames.length)},(_,i)=>i):[0];
@@ -494,7 +495,7 @@
   $('#run-desk').onclick=runLive;
   $('#export-desk').onclick=()=>{save();$('[data-view="export"]').click()};
   function updateCount(){const a=state.pieces.filter(C.active);
-    const count=a.filter(p=>selected.has(p.id)).length;
+    const count=a.filter(p=>(selected.size?selected.has(p.id):p.id===focusId)).length;
     for(const id of ['run-desk','run-floating','save-selected']){const button=$('#'+id);if(button){button.textContent=(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':'');button.disabled=!count||(submitting&&id!=='save-selected');setIcon(button,id==='save-selected'?'save':'play',(id==='save-selected'?'Save selected':'Run selected')+(count?' ('+count+')':''));button.title=count?button.getAttribute('aria-label'):'Check Select beside one or more SKUs'}}
     for(const card of $$('#piece-grid .piece-card'))card.classList.toggle('batch-selected',selected.has(card.dataset.id));$('#batch-count').textContent=`${a.length}/10 pieces · ${selected.size} selected · batch ${state.batch}`;$('#select-all').checked=a.length>0&&a.every(p=>selected.has(p.id));}
   function renderCatalog(){
@@ -559,7 +560,7 @@
     $('#queue-dialog').showModal();
   }
   $('#queue-close').addEventListener('click',()=>$('#queue-dialog').close());
-  $$('[data-batch]').forEach(b=>b.addEventListener('click',()=>queue(b.dataset.batch,state.pieces.filter(p=>selected.has(p.id)))));
+  $$('[data-batch]').forEach(b=>b.addEventListener('click',()=>queue(b.dataset.batch,state.pieces.filter(p=>(selected.size?selected.has(p.id):p.id===focusId)))));
   $('#select-all').addEventListener('change',e=>{selected.clear();if(e.target.checked)state.pieces.filter(C.active).forEach(p=>selected.add(p.id));render();});
   $$('[data-view]').forEach(b=>b.addEventListener('click',()=>{$$('[data-view]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));for(const name of ['pieces','catalog','export'])$('#'+name+'-view').hidden=name!==b.dataset.view;renderCatalog();}));
   $('#load-samples').addEventListener('click',()=>{
@@ -676,7 +677,7 @@
     }finally{URL.revokeObjectURL(url)}
   }
   const reviewStyle=document.createElement('style');
-  reviewStyle.textContent='#asset-grid img,.piece-photo img,.photo-editor canvas{background:#fff}.review-quick-save{display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:0;background:#f8f6f1;padding:12px 0;z-index:3}.photo-actions{display:flex;flex-wrap:wrap;gap:8px}';document.head.append(reviewStyle);
+  reviewStyle.textContent='#asset-grid img,.piece-photo img,.photo-editor canvas{background:#fff}.review-quick-save{display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:0;background:#f8f6f1;padding:12px 0;z-index:3}.photo-actions{display:flex;flex-wrap:wrap;gap:8px}';reviewStyle.textContent+=`.review-confirmation{flex:0 0 100%;display:flex;align-items:center;gap:8px;margin:0;font-size:14px}.review-confirmation input{width:22px;height:22px;flex-shrink:0}.review-quick-save{position:fixed!important;left:0;right:0;bottom:0;padding:8px 12px calc(8px + env(safe-area-inset-bottom))!important;z-index:20!important}#asset-review{padding-bottom:180px}#original-thumbnails{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-bottom:190px}#original-thumbnails article{min-width:0;padding:8px!important;margin:0!important}#original-thumbnails img{width:100%;height:120px!important;object-fit:contain;background:white}#original-thumbnails .photo-actions{gap:3px}#original-thumbnails button{width:32px!important;height:32px!important;min-width:0!important;padding:5px!important}#original-thumbnails label{font-size:14px}.job-progress .start-over-action{margin-left:auto}.job-progress{display:flex;flex-wrap:wrap;align-items:center;gap:4px}.job-progress>p{flex-basis:100%}`;document.head.append(reviewStyle);
   const actionStyle=document.createElement('style');actionStyle.textContent=`
 .studio-icon{display:inline-flex!important;align-items:center;justify-content:center;flex-shrink:0;width:44px!important;height:44px;min-width:44px!important;padding:10px!important;vertical-align:middle;color:#393835!important}
 [hidden].studio-icon{display:none!important}.studio-icon svg{width:22px;height:22px;display:block;pointer-events:none}.studio-icon:disabled{opacity:.4}.pro-dock .studio-icon,#run-desk.studio-icon{color:white!important}
@@ -764,6 +765,8 @@
     $('#review-title').oninput=()=>{p.title=$('#review-title').value;growTitle();invalidate()};
     $('#review-copy').oninput=()=>{p.description=$('#review-copy').value;invalidate()};
     $('#review-price').oninput=()=>{p.price=$('#review-price').value;invalidate()};
+    const keepReviewVisible=()=>{const bar=$('.review-quick-save');if(bar)bar.style.bottom=Math.max(0,innerHeight-(window.visualViewport?.height||innerHeight)-(window.visualViewport?.offsetTop||0))+'px'};if(window.visualViewport){visualViewport.addEventListener('resize',keepReviewVisible,{signal:reviewEvents.signal});visualViewport.addEventListener('scroll',keepReviewVisible,{signal:reviewEvents.signal});}keepReviewVisible();
+    const confirmation=$('#confirm-details').parentElement;confirmation.classList.add('review-confirmation');$('.review-quick-save').prepend(confirmation);
     const details=$('#listing-details');
     const labels={brand:'Brand',department:'Department',category:'Category',size:'Size',color:'Color',color2:'Second color (optional)',quantity:'Quantity',sku:'SKU',cost:'Purchase cost ($, optional)',location:'Storage location (optional)',notes:'Notes (optional)'};
     const showDetails=()=>{
@@ -792,6 +795,7 @@
     $('#review-copy').onchange=refreshDetails;$('#review-title').onchange=refreshDetails;$('#review-price').addEventListener('input',checkDetails);
     $('#archive-item').onclick=()=>archiveItem(p);
     let savedFinal=await assetStore(p.id+':final');if(ticket!==reviewTicket)return;
+    const originals=document.createElement('section');originals.id='original-thumbnails';const originalsTitle=document.createElement('h2');originalsTitle.textContent='Original photos';originalsTitle.className='originals-heading';$('#asset-grid').after(originalsTitle,originals);
     const chosen=new Map(),entries=new Map(),photoNumbers=new Map();
     let displayedCopyJob=p.jobs?.['copy:0']?.complete?p.jobs['copy:0'].id:null;
     const updateTask=(key)=>{
@@ -812,7 +816,7 @@
       label.append(check,document.createTextNode(' '+asset.label));img.src=photoURL(asset.blob);img.alt=asset.label;
       const badge=document.createElement('span');badge.className='photo-selected-badge';badge.textContent='✓';badge.setAttribute('aria-hidden','true');
       const actions=document.createElement('div');actions.className='photo-actions';
-      box.classList.toggle('photo-selected',check.checked);box.append(label,img,badge,actions);$('#asset-grid').append(box);
+      box.classList.toggle('photo-selected',check.checked);box.append(label,img,badge,actions);(key.startsWith('original:')?$('#original-thumbnails'):$('#asset-grid')).append(box);
       if(check.checked)chosen.set(key,asset);
       check.onchange=()=>{check.checked?chosen.set(key,asset):chosen.delete(key);box.classList.toggle('photo-selected',check.checked);p.finalKeys=[...chosen.keys()];invalidate()};
       const edit=iconButton('edit','Edit '+asset.label,()=>editAsset(asset,async blob=>{
@@ -951,7 +955,7 @@
   $('#add-skus').onclick=()=>{state.pieces.push(...Array.from({length:10},makePiece));render()};
   $('#run-floating').onclick=runLive;
   $('#save-selected').onclick=async()=>{
-    const items=state.pieces.filter(p=>C.active(p)&&selected.has(p.id)),status=$('#bulk-save-status');
+    const items=state.pieces.filter(p=>C.active(p)&&(selected.size?selected.has(p.id):p.id===focusId)),status=$('#bulk-save-status');
     $('#save-selected').disabled=true;let saved=0;
     try{
       for(const p of items){
@@ -981,3 +985,4 @@
   pump();
   Promise.all(state.pieces.map(restorePhotos)).then(()=>{render();return openReview()}).catch(console.error);
 })();
+
