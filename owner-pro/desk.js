@@ -208,13 +208,13 @@
     state.archive.push({...p,batch:state.batch});state.pieces.splice(index,1);state.pieces.push(makePiece());selected.delete(p.id);save();location.hash='';render();
   }
   async function fileHash(file){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))].map(n=>n.toString(16).padStart(2,'0')).join('')}
-  async function uniquePhotos(files,key){
+  async function uniquePhotos(files,key,current){
     const seen=new Set();
     for(const item of [...state.pieces,...state.archive]){
       item.photoHashes||={};
       for(const assetKey of Object.keys(item.assets||{}).filter(k=>k.startsWith(key==='products'?'original:':'reference:'))){
         if(!item.photoHashes[assetKey]){const asset=await assetStore(item.id+':'+assetKey);if(asset)item.photoHashes[assetKey]=await fileHash(asset.blob)}
-        if(item.photoHashes[assetKey])seen.add(item.photoHashes[assetKey]);
+        if(item.photoHashes[assetKey]){const original=await assetStore(item.id+':'+assetKey);if(original&&!item.deletedAssets?.[assetKey])seen.add(item.photoHashes[assetKey]);}
       }
     }
     const accepted=[];let duplicates=0;
@@ -342,7 +342,14 @@
     const list=Object.values(p.progress||{}), done=list.filter(j=>j.state==='done').length;
     box.replaceChildren();
     if(!list.length&&!C.active(p))return;
-    const text=document.createElement('p');text.textContent=p.finalSaved?'✓ Item saved':'● Ready to review';text.style.color='#28743b';if(done&&!p.finalSaved)box.append(text);if(p.finalSaved){const saved=iconButton('check','Saved SKU '+p.sku+' — review saved item',e=>{e.stopPropagation();reviewUrl(p)});saved.classList.add('saved-indicator');box.append(saved);}
+    const expected=['clean','copy','style'].filter(k=>p[k]).flatMap(k=>k==='clean'?Array.from({length:p.photoNames.length},(_,i)=>k+':'+i):[k+':0']);
+    const unfinished=expected.filter(slot=>p.progress?.[slot]?.state!=='done');
+    const busy=list.some(j=>['queued','running'].includes(j.state));
+    const failed=list.filter(j=>j.state==='error').length;
+    const text=document.createElement('p');
+    text.textContent=busy?'Processing — completed photos can be reviewed':failed?'Needs attention — '+failed+' failed':unfinished.length?'Incomplete — check remaining photos':'● Ready to review';
+    text.style.color=unfinished.length||failed?'#996515':'#28743b';text.setAttribute('role','status');
+    if(list.length&&(!p.finalSaved||unfinished.length))box.append(text);if(p.finalSaved){const saved=iconButton('check','Saved SKU '+p.sku+' — review saved item',e=>{e.stopPropagation();reviewUrl(p)});saved.classList.add('saved-indicator');box.append(saved);}
     for(const [index,key] of ['clean','copy','style'].entries()){
       const row=card.querySelectorAll('.tool-row')[index];if(!row)continue;
       let meter=row.querySelector('progress');if(!meter){meter=document.createElement('progress');row.append(meter)}
@@ -356,7 +363,15 @@
         counter.textContent=total?completed+'/'+total:'';counter.setAttribute('aria-label',completed+' of '+total+' background removals complete');
       }
       meter.setAttribute('aria-label',key+' progress');
-      const errors=tasks.filter(([,job])=>job.state==='error').map(([,job])=>job.message);
+      row.querySelector('.workflow-state')?.remove();
+      if(p[key]&&completed<total){
+        const stateLabel=document.createElement('small');stateLabel.className='workflow-state';stateLabel.style.cssText='display:block;font-size:11px;color:#996515';
+        const running=tasks.filter(([,j])=>['running','queued'].includes(j.state)).length;
+        const failures=tasks.filter(([,j])=>j.state==='error').length;
+        stateLabel.textContent=running?'Processing':failures?failures+' failed — retry':'Incomplete — check status';
+        row.append(stateLabel);meter.style.accentColor='#b7791f';
+      }else meter.style.accentColor='#28743b';
+      const errors=tasks.filter(([,job])=>['error','attention'].includes(job.state)).map(([,job])=>job.message);
       row.querySelector('.workflow-error')?.remove();
       if(errors.length){const issue=document.createElement('button');issue.className='workflow-error';issue.textContent='!';issue.setAttribute('aria-label',key+' needs attention');issue.onclick=e=>{e.stopPropagation();alert(errors.join('\n'))};row.append(issue)}
     }
@@ -429,7 +444,7 @@
               const products=ph.products.slice(0,key==='copy'?8-refs.length:6);
               if(key==='copy'){
                 form.set('reference_count',String(refs.length));
-                form.set('additional_info',[p.brand&&'Brand: '+p.brand,p.title,p.size&&'Size: '+p.size,p.notes,...refs.map(r=>r.kind),'When a brand or size is legible on an uploaded label or explicitly supplied, include separate Brand: and Size: lines in the description. Also include Department: and Category: lines when supported by the item photos and details. Department must be one of '+Object.keys(C.taxonomy.departments).join(', ')+'. Category must be one of the allowed categories for that department: '+JSON.stringify(C.taxonomy.departments)+'. Do not guess; omit unknown values.'].filter(Boolean).join('\n'));
+                form.set('additional_info',[p.brand&&'Brand: '+p.brand,p.title,p.size&&'Size: '+p.size,p.notes,...refs.map(r=>r.kind),'MEASUREMENT ACCURACY: Use explicit seller measurements in the item notes exactly, including units, fractions and flat-versus-circumference wording. Never infer measurements from size, appearance, previous title, or typical dimensions. Read measurements from ordinary product photos as well as labels; only report them when endpoints, scale and units are unambiguous. Do not double flat measurements or convert units unless explicitly requested. If photos conflict with notes or are unclear, omit the disputed measurement and say it needs seller verification. Not all uploaded photos may be included; never fill gaps with guesses.','When a brand or size is legible on an uploaded label or explicitly supplied, include separate Brand: and Size: lines in the description. Also include Department: and Category: lines when supported by the item photos and details. Department must be one of '+Object.keys(C.taxonomy.departments).join(', ')+'. Category must be one of the allowed categories for that department: '+JSON.stringify(C.taxonomy.departments)+'. Do not guess; omit unknown values.'].filter(Boolean).join('\n'));
               }else{
                 form.set('product_count',String(products.length));
                 form.set('instructions',p.creativeInstructions||'');const creativeRef=await assetStore(p.id+':creative-reference');if(creativeRef?.blob)form.append('reference',await prepareListingImage(creativeRef.blob),'creative-reference.jpg');
@@ -452,7 +467,7 @@
             if(status.status==='succeeded')break;
             if(status.status==='failed'){
               if(status.error_code!=='STATUS_UNKNOWN'){delete p.jobs[slot];save()}
-              throw Error(status.error||'Generation failed.');
+              throw Object.assign(Error(status.error||'Generation failed.'),{confirmedFailure:true});
             }
             await new Promise(resolve=>setTimeout(resolve,2500));
           }
@@ -479,7 +494,8 @@
             let blob;
             if(key==='clean')blob=await result.blob();
             else{const data=await result.json();if(!data.image)throw Error('Missing creative output.');blob=new Blob([Uint8Array.from(atob(data.image),c=>c.charCodeAt(0))],{type:data.mimeType||'image/jpeg'});}
-            if(!p.deletedAssets?.[slot]&&(!job.complete || !p.assets?.[slot]))await rememberAsset(p,slot,blob,label);
+            const outputSlot=key==='style'?'creative:'+job.id:slot;
+            if(!p.deletedAssets?.[outputSlot]&&(!job.complete || !p.assets?.[outputSlot]))await rememberAsset(p,outputSlot,blob,label);
             const a=document.createElement('a');a.href=photoURL(blob);a.download=p.sku+'-'+key+'-'+(i+1)+(blob.type.includes('png')?'.png':'.jpg');a.textContent='Download image';
             line.textContent=label+' — ';line.append(a);
           }
@@ -492,7 +508,7 @@
         if(input && document.activeElement!==input){input.value=p[field];}
       }
       if(card)updateCardTaxonomy(card,p);
-    }catch(e){p.progress[slot]={state:'error',message:label+' · '+e.message}}
+    }catch(e){p.progress[slot]={state:e.confirmedFailure?'error':'attention',message:label+' · '+(e.confirmedFailure?'Failed: ':'Needs checking: ')+e.message}}
     finally{paintProgress(p);save();renderCatalog()}
   }
   $('#run-desk').onclick=runLive;
@@ -526,7 +542,22 @@
         if(files.length>(key==='refs'?3:20)||files.some(f=>f.size>15*1024*1024||!/^image\/(jpeg|png|webp)$/.test(f.type)))throw Error('Use JPG, PNG or WebP files under 15 MB. Maximum: 20 product photos or 3 references.');
         const ph=await restorePhotos(p),kind=card.querySelector('[data-ref-kind]').value;
         if(key==='products'&&p.photoNames.length&&!ph.products.length&&!(files.length===p.photoNames.length&&files.every((file,i)=>file.name===p.photoNames[i])))throw Error('Reattach the original photos in their original order, or use Start over to replace this item.');
-        const {accepted,duplicates}=await uniquePhotos(files,key);
+        // Re-selecting an existing photo retries only its unfinished background job.
+        if(key==='products'){
+          for(const file of [...files]){
+            const hash=await fileHash(file);
+            const existing=Object.entries(p.photoHashes||{}).find(([k,h])=>k.startsWith('original:')&&h===hash);
+            if(existing){const index=Number(existing[0].split(':')[1]),slot='clean:'+index;
+              if(!p.jobs?.[slot]?.complete&&!scheduled.has(p.id+slot)){
+                const assetKey=existing[0];await rememberAsset(p,assetKey,file,'Original '+(index+1));
+                ph.products[index]={file,name:file.name,url:photoURL(file),kind};
+                sessionPhotos.set(p.id,ph);await regenerateItem(p,'clean',index);
+                files.splice(files.indexOf(file),1);
+              }
+            }
+          }
+        }
+        const {accepted,duplicates}=await uniquePhotos(files,key,p);
         if(ph[key].length+accepted.length>(key==='refs'?3:20))throw Error('This item already has '+ph[key].length+' photos. Remove photos before adding more.');
         const offset=ph[key].length;
         p.photoHashes||={};
@@ -539,7 +570,7 @@
           p.originalsChecked=true;p.missingOriginals=false;sessionPhotos.set(p.id,ph);p[key==='products'?'photoNames':'referenceNames']=ph[key].map(f=>f.name);p.reviewed=false;p.finalSaved=false;
           // Additional photos change the copy and creative inputs; preserve completed background results.
           for(const slot of key==='products'?['copy:0','style:0']:['copy:0']){if(p.jobs)delete p.jobs[slot];if(p.progress)delete p.progress[slot]}
-          for(const item of state.pieces){if(Object.values(item.jobs||{}).some(j=>j.complete))selected.delete(item.id);else if(item.photoNames?.length)selected.add(item.id);}save();render();
+          selected.add(p.id);focusId=p.id;save();render();alert('Photos added. This item is selected. Press Run to process the new photos.');
         }
         if(duplicates)alert(duplicates+' duplicate photo'+(duplicates===1?' was':'s were')+' skipped.');
       }catch(error){alert(error.message)}finally{uploading=false;if(e.target.isConnected){e.target.disabled=false;e.target.value=''}}
@@ -846,10 +877,10 @@
       });
       actions.append(edit,undo,downloadPhoto,remove);
       let retry=null;const meter=document.createElement('progress');meter.hidden=true;meter.setAttribute('aria-label','Regenerating '+asset.label);box.append(meter);
-      if(key.startsWith('clean:')||key.startsWith('style:')){
+      if(key.startsWith('clean:')||key.startsWith('style:')||key.startsWith('creative:')){
         retry=iconButton('retry','Regenerate '+asset.label,async()=>{
           retry.disabled=true;acknowledge(retry,'Regeneration requested');meter.hidden=false;
-          try{await regenerateItem(p,key.split(':')[0],Number(key.split(':')[1]));invalidate()}
+          try{await regenerateItem(p,key.startsWith('creative:')?'style':key.split(':')[0],key.startsWith('creative:')?0:Number(key.split(':')[1]));invalidate()}
           catch(e){retry.disabled=false;meter.hidden=true;setIcon(retry,'retry','Regenerate '+asset.label);alert(e.message)}
         });actions.append(retry);
       }
