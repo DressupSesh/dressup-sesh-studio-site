@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /studio/
+Disallow: /studio-tools.html
+Disallow: /studio-backroom.html
+Disallow: /owner-pro/
+Disallow: /review/
+Sitemap: https://dressupsesh.studio/sitemap.xml
