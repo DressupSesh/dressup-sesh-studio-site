@@ -54,10 +54,13 @@
       p_code: code, p_label: $('campaign-label').value.trim(), p_channel: $('campaign-channel').value.trim(), p_spend_cents: spend,
     });
     if (error) { status('Could not save this push. Check the details and your owner MFA session.'); return; }
-    $('campaign-form').reset(); await load();
+    $('campaign-form').reset();
+    window.dispatchEvent(new Event('studio:campaigns-saved'));
+    await load();
   });
   $('campaign-refresh').addEventListener('click', () => { void load(); });
   $('beta-tab').addEventListener('click', () => { void load(); });
+  window.addEventListener('studio:admin-ready', () => { if (!$('beta-pane').hidden) void load(); });
   window.addEventListener('studio:admin-locked', clear);
   window.addEventListener('pagehide', clear);
 })();

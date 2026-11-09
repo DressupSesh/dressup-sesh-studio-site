@@ -363,7 +363,10 @@
     const blob = new Blob(['\ufeff' + rows.map(row=>row.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob), link = node('a'); link.href = url; link.download = `studio-summary-${snapshot.audience}-${snapshot.as_of.slice(0,10)}.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
-  window.addEventListener('studio:admin-ready', () => { void load(); });
+  window.addEventListener('studio:admin-ready', () => {
+    void load();
+    if (!$('beta-pane').hidden && !betaLoaded) void loadBeta();
+  });
   window.addEventListener('studio:finance-updated', () => { void load({ preserveScroll: true }); });
   window.addEventListener('studio:admin-locked', () => { clearClassifications(); clear(); clearBeta(); });
   window.addEventListener('pagehide', () => { clearClassifications(); clear(); clearBeta(); });

@@ -17,27 +17,29 @@
   const number = new Intl.NumberFormat('en-US');
   const metrics = [
     ['Traffic and customer activity', [
-      ['Tracked site visits', 'site_visits'],
-      ['New accounts, excluding owner', 'new_accounts'],
-      ['New customer accounts', 'new_customers'],
-      ['Marked Customer', 'classified_customers'],
-      ['Customer emails verified', 'verified_customers'],
-      ['Active customers', 'active_customers'],
-      ['Customer trial access enabled', 'trial_access_enabled'],
-      ['Customer trials started, recorded', 'trials_started'],
-      ['Customer trials finished, recorded', 'trials_finished'],
-      ['Customer feedback received', 'customer_feedback']
+      ['Tracked site visits', 'site_visits', '#traffic-heading'],
+      ['New accounts, excluding owner', 'new_accounts', '#finance/accounts'],
+      ['New customer accounts', 'new_customers', '#finance/accounts'],
+      ['Marked Customer', 'classified_customers', '#finance/accounts'],
+      ['Customer emails verified', 'verified_customers', '#finance/accounts'],
+      ['Active customers', 'active_customers', '#finance/daily'],
+      ['Customer trial access enabled', 'trial_access_enabled', '#beta/funnel'],
+      ['Customer trials started, recorded', 'trials_started', '#beta/funnel'],
+      ['Customer trials finished, recorded', 'trials_finished', '#beta/funnel'],
+      ['Customer feedback received', 'customer_feedback', '#beta/testers']
     ]],
     ['Studio usage · all accounts', [
-      ['Listing Upgrades started', 'upgrades_started'],
-      ['Listing copy', 'copies'],
-      ['Background removals', 'backgrounds'],
-      ['Creative images', 'creatives'],
-      ['Estimated API cost', 'cost_micros']
+      ['Listing Upgrades started', 'upgrades_started', '#finance/usage'],
+      ['Listing copy', 'copies', '#finance/usage'],
+      ['Background removals', 'backgrounds', '#finance/usage'],
+      ['Creative images', 'creatives', '#finance/usage'],
+      ['Estimated API cost', 'cost_micros', '#finance/usage'],
+      ['OpenAI estimated cost', 'openai_cost_micros', '#finance/usage'],
+      ['Replicate estimated cost', 'replicate_cost_micros', '#finance/usage']
     ]],
     ['Stripe ledger · recorded live USD', [
-      ['Payments collected', 'collected_cents'],
-      ['Refunds issued', 'refunded_cents']
+      ['Payments collected', 'collected_cents', '#finance/revenue'],
+      ['Refunds issued', 'refunded_cents', '#finance/refunds']
     ]]
   ];
   let request = 0;
@@ -51,7 +53,7 @@
 
   function formatMetric(key, period) {
     const value = period[key];
-    if (key === 'cost_micros') {
+    if (key.endsWith('_micros')) {
       if (period.finished_operations === 0) return 'No logged usage';
       if (value == null) return 'No estimates';
       return estimate.format(value / 1e6);
@@ -73,10 +75,13 @@
       heading.colSpan = 3;
       divider.append(heading);
       rows.append(divider);
-      for (const [name, key] of items) {
+      for (const [name, key, href] of items) {
         const row = element('tr', '');
-        const title = element('th', name);
+        const title = element('th', '');
+        const link = element('a', name);
+        link.href = href;
         title.scope = 'row';
+        title.append(link);
         row.append(title, element('td', formatMetric(key, today)), element('td', formatMetric(key, period)));
         rows.append(row);
       }
@@ -165,6 +170,7 @@
   window.addEventListener('studio:admin-ready', load);
   window.addEventListener('studio:classifications-saved', load);
   window.addEventListener('studio:finance-updated', load);
+  window.addEventListener('studio:campaigns-saved', load);
   window.addEventListener('studio:admin-locked', clear);
   window.addEventListener('pagehide', clear);
   window.addEventListener('pageshow', event => { if (event.persisted) void load(); });
