@@ -8,3 +8,14 @@
 .module-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px;padding:0 0 12px;border-bottom:1px solid var(--line)}.module-tabs button{background:transparent;font-size:12px;min-height:40px;padding:9px 13px;color:var(--muted)}.module-tabs button[aria-selected="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}[data-module-group]{min-width:0}[data-module-group]:focus-visible{outline:2px solid var(--wine);outline-offset:5px}.refund-guide{font-size:13px;line-height:1.8;padding-left:20px;color:var(--ink)}#finance-status{font-size:13px;margin:0 0 16px}@media(max-width:540px){.module-tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:12px}.module-tabs button{white-space:nowrap;flex-shrink:0}}
 
 .prompt-load-actions{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}.prompt-image-test{margin:1.25rem 0 2rem;padding:1.25rem;background:var(--paper);border:1px solid var(--line);border-radius:12px}.prompt-image-test>label{display:block;margin:.9rem 0 .35rem;font-weight:600}.prompt-image-test input[type=file],.prompt-image-test textarea{width:100%;max-width:100%;box-sizing:border-box}.prompt-test-comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;margin-top:1rem}.prompt-test-comparison figure{margin:0}.prompt-test-comparison img{display:block;width:100%;max-height:640px;object-fit:contain;border-radius:8px;background:var(--card)}.prompt-test-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:.5rem}.prompt-test-inputs img{max-height:300px}.prompt-test-inputs figcaption,.prompt-test-comparison figcaption{overflow-wrap:anywhere;font-size:.85rem;margin:.5rem 0}.prompt-image-test details{margin-top:1rem}.prompt-test-comparison [hidden],.prompt-image-test [hidden]{display:none}@media(max-width:640px){.prompt-test-comparison{grid-template-columns:1fr}.prompt-image-test{padding:.9rem}.prompt-load-actions{justify-content:flex-start}}
+
+.daily-report{margin-bottom:18px}
+.daily-report-actions,.daily-report-links{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.daily-report-actions label{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px}
+.daily-report-links{list-style:none;padding-left:0}
+.daily-report .table-scroll{max-height:none}
+.daily-report .table-scroll tbody th{position:static;background:transparent;text-transform:none;letter-spacing:normal;font-size:12px}
+.daily-report .table-scroll th:first-child{white-space:normal}
+.daily-report .table-scroll td,.daily-report .table-scroll thead th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.daily-report .table-scroll .daily-report-group th{background:var(--paper);font-size:12px;letter-spacing:.04em}
+@media(max-width:540px){.daily-report .section-heading{align-items:flex-start;flex-direction:column}.daily-report-actions{margin-top:10px}}
