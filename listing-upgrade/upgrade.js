@@ -324,7 +324,7 @@ async function signIn(emailLink) {
     const captchaToken = authCaptcha?.getToken(); if (authCaptcha?.enabled && !captchaToken) throw new Error('Complete the security check first.');
     const c = await authClient(), email = $('#account-email').value.trim();
     const result = emailLink
-      ? await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,captchaToken,emailRedirectTo:'https://dressupsesh.studio/studio/'}})
+      ? await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,captchaToken,emailRedirectTo:'https://dressupsesh.studio/'}})
       : await c.auth.signInWithPassword({email,password:$('#account-password').value,options:{captchaToken}});
     authCaptcha?.reset(); if (result.error) throw result.error;
     message('#account-status', emailLink ? 'Check your email for the newest secure sign-in link.' : 'Signed in.');

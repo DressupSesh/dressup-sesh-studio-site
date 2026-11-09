@@ -17,7 +17,7 @@ async function refresh(){
 async function authenticate(link){
  if(!$('auth-email').reportValidity())return;const token=captcha?.getToken();if(captcha?.enabled&&!token){say('auth-status','Complete the security check first.');return;}
  $('auth-link').disabled=true;
- try{const c=await getClient(),email=$('auth-email').value.trim(),r=link?await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,captchaToken:token,emailRedirectTo:'https://dressupsesh.studio/studio/'}}):await c.auth.signInWithPassword({email,password:$('auth-password').value,options:{captchaToken:token}});captcha?.reset();if(r.error)throw r.error;say('auth-status',link?'Check your email for the newest sign-in link.':'Signed in.');if(!link){$('auth-password').value='';await refresh();}}catch(e){say('auth-status',e.message);}finally{$('auth-link').disabled=false;}
+ try{const c=await getClient(),email=$('auth-email').value.trim(),r=link?await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,captchaToken:token,emailRedirectTo:'https://dressupsesh.studio/'}}):await c.auth.signInWithPassword({email,password:$('auth-password').value,options:{captchaToken:token}});captcha?.reset();if(r.error)throw r.error;say('auth-status',link?'Check your email for the newest sign-in link.':'Signed in.');if(!link){$('auth-password').value='';await refresh();}}catch(e){say('auth-status',e.message);}finally{$('auth-link').disabled=false;}
 }
 $('studio-auth').addEventListener('submit',e=>{e.preventDefault();authenticate(false);});$('auth-link').addEventListener('click',()=>authenticate(true));
 $('studio-signout').addEventListener('click',async()=>{await(await getClient()).auth.signOut();signedOut();});
@@ -27,3 +27,7 @@ $('hub-trial').addEventListener('click',async()=>{try{await request('listing-upg
 const client=await getClient();client.auth.onAuthStateChange((event)=>{if(event!=='INITIAL_SESSION')setTimeout(()=>refresh(),0);});await refresh();
 
 $('hub-member').addEventListener('click',async()=>{try{if(!await session()){$('signin').scrollIntoView();say('auth-status','Sign in before choosing Member.');return;}$('hub-member').disabled=true;const result=await request('create-checkout-session',{tier:'member'});const u=new URL(result.url);if(u.protocol!=='https:'||!['checkout.stripe.com','billing.stripe.com'].includes(u.hostname))throw Error('Could not open billing.');location.assign(u.href);}catch(e){say('hub-billing-status',e.message);}finally{$('hub-member').disabled=false;}});
+
+const billingReturn=new URLSearchParams(location.search).get('billing');
+if(billingReturn)say('hub-billing-status',billingReturn==='cancelled'?'Checkout was cancelled.':'Checkout returned. Your allowance refreshes when the payment is confirmed.');
+if(new URLSearchParams(location.search).get('password-reset')==='success')say('auth-status','Password updated. Sign in with your new password.');
