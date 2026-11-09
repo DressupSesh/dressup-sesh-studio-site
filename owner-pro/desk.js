@@ -570,7 +570,8 @@
           p.originalsChecked=true;p.missingOriginals=false;sessionPhotos.set(p.id,ph);p[key==='products'?'photoNames':'referenceNames']=ph[key].map(f=>f.name);p.reviewed=false;p.finalSaved=false;
           // Additional photos change the copy and creative inputs; preserve completed background results.
           for(const slot of key==='products'?['copy:0','style:0']:['copy:0']){if(p.jobs)delete p.jobs[slot];if(p.progress)delete p.progress[slot]}
-          selected.add(p.id);focusId=p.id;save();render();alert('Photos added. This item is selected. Press Run to process the new photos.');
+          if(key==='products'&&offset===0){p.clean=true;p.copy=true;}
+          selected.add(p.id);focusId=p.id;save();render();
         }
         if(duplicates)alert(duplicates+' duplicate photo'+(duplicates===1?' was':'s were')+' skipped.');
       }catch(error){alert(error.message)}finally{uploading=false;if(e.target.isConnected){e.target.disabled=false;e.target.value=''}}
@@ -825,7 +826,7 @@
       return errors;
     };
     showDetails();checkDetails();$('#confirm-details').checked=!!p.reviewed;
-    $('#confirm-details').onchange=()=>{p.reviewed=$('#confirm-details').checked;p.finalSaved=false;syncSaved();save()};
+    $('#confirm-details').onchange=()=>{const label=$('#confirm-details').closest('label');if($('#confirm-details').checked){label.style.fontWeight='';label.style.background='';label.style.outline='';label.style.padding='';}p.reviewed=$('#confirm-details').checked;p.finalSaved=false;syncSaved();save()};
     const refreshDetails=()=>{fillDetails(p);showDetails();checkDetails();$('#confirm-details').checked=false;invalidate()};
     $('#review-copy').onchange=refreshDetails;$('#review-title').onchange=refreshDetails;$('#review-price').addEventListener('input',checkDetails);
     $('#archive-item').onclick=()=>archiveItem(p);
@@ -907,8 +908,9 @@
       const button=$('#save-final');button.disabled=true;
       try{
         if(itemBusy(p))throw Error('Let this item finish processing before saving the final version.');
+        if(!$('#confirm-details').checked){const checkbox=$('#confirm-details'),label=checkbox.closest('label');label.style.fontWeight='700';label.style.background='#fff0c9';label.style.outline='2px solid #b7791f';label.style.padding='8px';checkbox.focus();throw Error('Check “I reviewed the listing details and photos” before saving.');}
         checkDetails();const errors=C.saveIssues({...p,reviewed:true},allPieces());if(errors.length){$('#listing-details').scrollIntoView?.({block:'center'});throw Error('Complete the highlighted listing details before saving: '+errors.join('; '));}
-        if(!$('#confirm-details').checked)throw Error('Review the listing details and photos, then check the confirmation before saving.');
+        
         if(!chosen.size)throw Error('Select at least one photo.');
         if(chosen.size>16)throw Error('Select no more than 16 photos for Poshmark.');
         
