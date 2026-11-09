@@ -1,4 +1,8 @@
-import {getClient,workflowNotice} from '/studio-client.mjs';
+import {getClient} from '/studio-client.mjs';
+import {savePending,takePending,clearPending,expirePending,readPending,emailReturnURL} from '/signup-continuity.mjs';
+import {mountPhoneAuth} from '/sms-auth.mjs';
+let fallbackPending=null, restoredUpload=null, resumePromise=null;
+void expirePending();
 import { ALLOWANCES, PLAN_NAMES, MARKETPLACES, listingLink, combinedCopy, reviewProblem, photoFilename } from './core.mjs';
 
 const $ = selector => document.querySelector(selector);
@@ -80,6 +84,7 @@ async function sampleAsset(path, label, kind, choose) {
 }
 $('#sample').addEventListener('click', async () => {
   if (state.busy) return;
+  await clearPending(); fallbackPending=null;restoredUpload=null;
   state.busy = true; $('#sample').disabled = true;
   message('#import-status', 'Loading the jacket example…');
   try {
@@ -102,7 +107,7 @@ $('#import-form').addEventListener('submit', async event => {
   event.preventDefault(); if (state.busy) return;
   try {
     const url = listingLink($('#listing-url').value.trim());
-    if (!await requireAccount()) return;
+    if (!await requireAccount({ action: 'import', url })) return;
     state.busy = true; $('#import-button').disabled = true;
     message('#import-status', 'Importing the listing photos and details…');
     const result = await api('', { action: 'import', id: crypto.randomUUID(), url });
@@ -126,11 +131,15 @@ $('#manual-load').addEventListener('click', async () => {
   if (state.busy) return;
   state.busy = true; $('#manual-load').disabled = true;
   try {
-    if (!await requireAccount()) return;
-    const photos = await readFiles($('#manual-photos').files, copyOnly ? 10 : 16);
-    const references = copyOnly && $('#manual-references')?.files.length ? await readFiles($('#manual-references').files, 10 - photos.length) : [];
+    const input = restoredUpload || { photos: Array.from($('#manual-photos').files), references: Array.from($('#manual-references')?.files || []), title: $('#manual-title')?.value || '', description: $('#manual-description')?.value || '', brand: $('#manual-brand')?.value || '' };
+    if (!input.photos.length) throw new Error('Choose at least one product photo.');
+    if (input.photos.length + input.references.length > (copyOnly ? 10 : 16)) throw new Error('Choose fewer photos before continuing.');
+    if (!await requireAccount({ action: 'upload', ...input })) return;
+    const photos = await readFiles(input.photos, copyOnly ? 10 : 16);
+    const references = copyOnly && input.references.length ? await readFiles(input.references, 10 - photos.length) : [];
     references.forEach(p => { p.selected=false; p.reference=true; p.kind='Reference photo'; });
-    const original = { title: $('#manual-title')?.value.trim() || '', description: $('#manual-description')?.value.trim() || '', brand: $('#manual-brand')?.value.trim() || '', reference_count: references.length };
+    const original = { title: input.title.trim(), description: input.description.trim(), brand: input.brand.trim(), reference_count: references.length };
+    restoredUpload = null;
     clearWorkspace();
     for (const photo of [...references,...photos]) photo.url = urlFor(photo.blob);
     state.photos = photos; state.originals = [...references,...photos].map(photo => ({ ...photo }));
@@ -283,8 +292,9 @@ for (const market of MARKETPLACES) {
   link.append(text, arrow); $('#post-links').append(link);
 }
 $('#start-over').addEventListener('click', () => { if(state.busy){message('#result-note','Let the current workflows finish before starting another listing.');return;} $('#reset-dialog').showModal(); });
-$('#confirm-reset').addEventListener('click', () => { clearWorkspace(); $('#reset-dialog').close(); $('#listing-url').value = ''; (copyOnly ? $('#manual-photos') : $('#listing-url')).focus(); message('#import-status', 'Ready for another listing.'); });
-document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+$('#confirm-reset').addEventListener('click', () => { void clearPending();fallbackPending=null;restoredUpload=null;clearWorkspace(); $('#reset-dialog').close(); $('#listing-url').value = ''; (copyOnly ? $('#manual-photos') : $('#listing-url')).focus(); message('#import-status', 'Ready for another listing.'); });
+document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => {const dialog=button.closest('dialog');if(dialog.id==='account-dialog'){void clearPending();fallbackPending=null;}dialog.close();}));
+$('#account-dialog').addEventListener('cancel',()=>{void clearPending();fallbackPending=null;});
 
 function deviceInstructions(device) {
   document.querySelectorAll('[data-device]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.device === device)));
@@ -304,18 +314,31 @@ usage();
 async function authClient() {
   if (!client) {
     client = await getClient();
-    client.auth.onAuthStateChange((_event, session) => { $('#account-open').textContent = session ? 'My account' : 'Sign in'; $('#sign-out').hidden = !session; if (session) setTimeout(refreshAccount, 0); });
+    client.auth.onAuthStateChange((_event, session) => { $('#account-open').textContent = session ? 'My account' : 'Sign in'; $('#sign-out').hidden = !session; $('#account-form').hidden=!!session; const phoneHost=document.querySelector('[data-sms-login]');if(phoneHost)phoneHost.hidden=!!session||window.DRESSUP_CONFIG?.smsLoginEnabled!==true; if (session) setTimeout(() => { void refreshAccount(); void continueAfterSignIn(); }, 0); });
   }
   return client;
 }
-async function requireAccount() {
+async function requireAccount(pending) {
   const c = await authClient(); const {data} = await c.auth.getSession();
   if (data.session) return true;
-  openAccount(); message('#account-status', 'Sign in or create a free account to run the tools.'); return false;
+  let notice = 'Sign in to continue this item. Your photos and details will stay here.';
+  if (pending) {
+    try { await savePending(pending); fallbackPending=null; }
+    catch(error) { fallbackPending=pending; notice=error.message; }
+  }
+  openAccount(); message('#account-status', notice); return false;
 }
+let phoneMounted=false;
 function openAccount() {
-  $('#account-dialog').showModal();
+  if (!$('#account-dialog').open) $('#account-dialog').showModal();
   if (!authCaptcha) authCaptcha = window.DRESSUP_TURNSTILE.create('account-captcha', {onError:text=>message('#account-status',text,true)});
+  void authClient().then(async c => {
+    const {data}=await c.auth.getSession();
+    $('#account-form').hidden=!!data.session;
+    const host=document.querySelector('[data-sms-login]');
+    if(!data.session&&!phoneMounted){phoneMounted=true;await mountPhoneAuth(host,{getClient:authClient,getCaptcha:()=>authCaptcha,onSuccess:continueAfterSignIn});}
+    if(host)host.hidden=!!data.session||window.DRESSUP_CONFIG?.smsLoginEnabled!==true;
+  }).catch(error=>message('#account-status',error.message,true));
 }
 $('#account-open').addEventListener('click', openAccount);
 async function signIn(emailLink) {
@@ -323,17 +346,18 @@ async function signIn(emailLink) {
     if (!$('#account-email').reportValidity()) return;
     const captchaToken = authCaptcha?.getToken(); if (authCaptcha?.enabled && !captchaToken) throw new Error('Complete the security check first.');
     const c = await authClient(), email = $('#account-email').value.trim();
+    if (emailLink && !readPending()) { try { await savePending({action:'return'}); } catch {} }
     const result = emailLink
-      ? await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,captchaToken,emailRedirectTo:'https://dressupsesh.studio/'}})
+      ? await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,captchaToken,emailRedirectTo:emailReturnURL()}})
       : await c.auth.signInWithPassword({email,password:$('#account-password').value,options:{captchaToken}});
     authCaptcha?.reset(); if (result.error) throw result.error;
     message('#account-status', emailLink ? 'Check your email for the newest secure sign-in link.' : 'Signed in.');
-    if (!emailLink) { $('#account-password').value=''; $('#account-dialog').close(); await refreshAccount(); }
+    if (!emailLink) { $('#account-password').value=''; await continueAfterSignIn(); await refreshAccount(); }
   } catch(error) { message('#account-status', error.message, true); }
 }
 $('#account-form').addEventListener('submit', event=>{event.preventDefault();signIn(false);});
 $('#email-link').addEventListener('click', ()=>signIn(true));
-$('#sign-out').addEventListener('click', async()=>{await (await authClient()).auth.signOut();clearWorkspace();liveAccess=null;usage();$('#draft-list').replaceChildren();$('#account-dialog').close();});
+$('#sign-out').addEventListener('click', async()=>{await clearPending();fallbackPending=null;restoredUpload=null;await (await authClient()).auth.signOut();clearWorkspace();liveAccess=null;usage();$('#draft-list').replaceChildren();$('#account-dialog').close();});
 $('#activate-trial').addEventListener('click', async()=>{try{if(!await requireAccount())return;await api('',{action:'trial'});message('#account-status','Trial activated. Open The Studio to use your 3-item trial.');await refreshAccount();}catch(e){message('#account-status',e.message,true);}});
 async function api(query='', body, raw=false) {
   if (document.body.dataset.activation === 'pending') throw new Error('Live processing is awaiting activation. The jacket example is available to test editing and saving.');
@@ -348,7 +372,7 @@ async function api(query='', body, raw=false) {
 async function refreshAccount() {
   try {
     const c=await authClient(), {data}=await c.auth.getSession(); if(!data.session)return;
-    const result=await api(); liveAccess=result.access;usage();void workflowNotice();
+    const result=await api(); liveAccess=result.access;usage();
     $('#activate-trial').hidden=!!liveAccess.trial_active;
     const list=$('#draft-list');list.replaceChildren();
     for(const draft of result.drafts){const button=action(draft.source.title||'Untitled listing',async()=>{if(state.busy)return;try{await persistDraft();await loadDraft((await api('?id='+draft.id)).draft);}catch(e){message('#draft-status',e.message,true);}},'secondary');list.append(button);}
@@ -443,7 +467,30 @@ $('#resume-workflows').addEventListener('click',()=>{if(!state.busy)runWorkflows
 if(location.hash === '#account') openAccount();
 if(location.hash === '#install') showInstall();
 window.addEventListener('beforeunload',event=>{if(state.busy){event.preventDefault();event.returnValue='';}});
-refreshAccount().then(async()=>{const id=new URLSearchParams(location.search).get('draft');if(id&&liveAccess)try{await loadDraft((await api('?id='+encodeURIComponent(id))).draft);}catch(e){message('#draft-status',e.message,true);}});
+async function continueAfterSignIn() {
+  if (resumePromise) return resumePromise;
+  resumePromise = (async () => {
+    const {data}=await (await authClient()).auth.getSession(); if(!data.session)return;
+    $('#account-dialog').close();
+    const stored=await takePending().catch(()=>null), pending=stored || fallbackPending;
+    fallbackPending=null;
+    if (!pending) return;
+    if (pending.action==='import') { $('#listing-url').value=pending.url; $('#import-form').requestSubmit(); }
+    if (pending.action==='upload') {
+      restoredUpload=pending;
+      for(const key of ['title','description','brand']) { const node=$('#manual-'+key);if(node)node.value=pending[key]||''; }
+      $('#manual').open=true; message('#manual-status', `${pending.photos.length} selected photos restored. Continuing…`);
+      $('#manual-load').click();
+    }
+  })().catch(error=>message('#account-status',error.message,true)).finally(()=>{resumePromise=null;});
+  return resumePromise;
+}
+refreshAccount().then(async()=>{
+ const pending=readPending();
+ if(pending){await continueAfterSignIn();return;}
+ const id=new URLSearchParams(location.search).get('draft');
+ if(id&&liveAccess)try{await loadDraft((await api('?id='+encodeURIComponent(id))).draft);}catch(e){message('#draft-status',e.message,true);}
+});
 
 document.querySelectorAll('[data-checkout]').forEach(button=>button.addEventListener('click',async()=>{
  try {
@@ -456,3 +503,4 @@ document.querySelectorAll('[data-checkout]').forEach(button=>button.addEventList
   location.assign(url.href);
  }catch(e){message('#account-status',e.message,true);}
 }));
+

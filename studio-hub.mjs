@@ -1,10 +1,13 @@
+import {mountPhoneAuth} from './sms-auth.mjs';
+import {clearPending} from './signup-continuity.mjs';
 import {getClient,session,request} from './studio-client.mjs';
 const $=id=>document.getElementById(id),say=(id,text)=>$(id).textContent=text;
-let captcha=null,epoch=0;
-function signedOut(){epoch++;$('signed-in').hidden=true;$('signin').hidden=false;$('studio-drafts').hidden=true;$('studio-draft-list').replaceChildren();$('updates-optin').checked=false;$('pro-optin').checked=false;if(!captcha)captcha=window.DRESSUP_TURNSTILE.create('studio-captcha',{onError:message=>say('auth-status',message)});}
+let captcha=null,epoch=0,phoneMounted=false,linkMounted=false;
+function signedOut(){epoch++;$('signed-in').hidden=true;$('signin').hidden=false;$('studio-drafts').hidden=true;$('studio-draft-list').replaceChildren();$('updates-optin').checked=false;$('pro-optin').checked=false;if(!captcha)captcha=window.DRESSUP_TURNSTILE.create('studio-captcha',{onError:message=>say('auth-status',message)});if(!phoneMounted){phoneMounted=true;void mountPhoneAuth(document.querySelector('[data-sms-login]'),{getClient,getCaptcha:()=>captcha,onSuccess:refresh});}}
 async function refresh(){
  const ticket=++epoch,current=await session();if(ticket!==epoch)return;if(!current){signedOut();return;}
- $('signin').hidden=true;$('signed-in').hidden=false;say('account-caption','Signed in as '+current.user.email);
+ $('signin').hidden=true;$('signed-in').hidden=false;say('account-caption','Signed in as '+(current.user.email||current.user.phone||'your account'));
+ if(!linkMounted){linkMounted=true;void mountPhoneAuth(document.querySelector('[data-sms-link]'),{getClient,linking:true,onSuccess:refresh});}
  const results=await Promise.allSettled([request('listing-upgrade'),request('studio-communications')]);if(ticket!==epoch)return;
  if(results[0].status==='fulfilled'){
  const {access,drafts}=results[0].value;say('copy-allowance',access.free_copy_remaining==null?'Unlimited listing copy':`${access.free_copy_remaining} free copy outputs left this month`);say('upgrade-allowance',`${access.remaining} of ${access.limit} upgrades left this month`);
@@ -20,7 +23,7 @@ async function authenticate(link){
  try{const c=await getClient(),email=$('auth-email').value.trim(),r=link?await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,captchaToken:token,emailRedirectTo:'https://dressupsesh.studio/'}}):await c.auth.signInWithPassword({email,password:$('auth-password').value,options:{captchaToken:token}});captcha?.reset();if(r.error)throw r.error;say('auth-status',link?'Check your email for the newest sign-in link.':'Signed in.');if(!link){$('auth-password').value='';await refresh();}}catch(e){say('auth-status',e.message);}finally{$('auth-link').disabled=false;}
 }
 $('studio-auth').addEventListener('submit',e=>{e.preventDefault();authenticate(false);});$('auth-link').addEventListener('click',()=>authenticate(true));
-$('studio-signout').addEventListener('click',async()=>{await(await getClient()).auth.signOut();signedOut();});
+$('studio-signout').addEventListener('click',async()=>{await clearPending();await(await getClient()).auth.signOut();signedOut();});
 $('notice-dismiss').addEventListener('click',async()=>{try{await request('studio-communications',{action:'dismiss'});$('return-notice').hidden=true;}catch(e){say('preferences-status',e.message);}});
 $('preferences-form').addEventListener('submit',async e=>{e.preventDefault();try{if(!await session()){$('signin').scrollIntoView();say('auth-status','Sign in to save your email preferences.');return;}const button=e.target.querySelector('button');button.disabled=true;try{await request('studio-communications',{action:'preferences',updates:$('updates-optin').checked,pro_interest:$('pro-optin').checked,source:'studio'});say('preferences-status','Preferences saved. You can change them here anytime.');}finally{button.disabled=false;}}catch(error){say('preferences-status',error.message);}});
 $('hub-trial').addEventListener('click',async()=>{try{await request('listing-upgrade',{action:'trial'});say('hub-trial-status','Your trial is active. Open photo tools to get started.');await refresh();}catch(e){say('hub-trial-status',e.message);if(!await session())$('signin').scrollIntoView();}});
@@ -31,3 +34,4 @@ $('hub-member').addEventListener('click',async()=>{try{if(!await session()){$('s
 const billingReturn=new URLSearchParams(location.search).get('billing');
 if(billingReturn)say('hub-billing-status',billingReturn==='cancelled'?'Checkout was cancelled.':'Checkout returned. Your allowance refreshes when the payment is confirmed.');
 if(new URLSearchParams(location.search).get('password-reset')==='success')say('auth-status','Password updated. Sign in with your new password.');
+
