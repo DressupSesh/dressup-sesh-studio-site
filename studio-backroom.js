@@ -11,6 +11,7 @@
   const number = value => Number(value || 0).toLocaleString('en-US');
   const dollars = value => (Number(value) / 1000000).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const money = value => (Number(value || 0) / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const signupDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'America/Los_Angeles' });
   const date = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Never';
   function node(tag, text, className) {
     const el = document.createElement(tag);
@@ -52,6 +53,7 @@
       if (error) throw error;
       classificationChanges.clear();
       updateClassificationControls(`${number(changes.length)} ${changes.length === 1 ? 'classification' : 'classifications'} saved.`);
+      window.dispatchEvent(new Event('studio:classifications-saved'));
       await load({ preserveScroll: true });
     } catch (error) {
       if (epoch !== classificationEpoch || !window.DRESSUP_STUDIO_ADMIN) return;
@@ -129,6 +131,7 @@
     for (const a of data.accounts) {
       const row = node('tr'), email = node('td', a.email || 'Email unavailable', 'account-email');
       email.append(node('small', a.email_confirmed_at ? 'Email confirmed' : 'Awaiting confirmation'));
+      if (a.created_at) email.append(node('small', `Joined ${signupDate.format(new Date(a.created_at))} PT`));
       const plan = node('td', a.access_suspended ? 'Refunded · suspended' : a.plan);
       plan.append(node('small', a.subscription_status || 'No subscription'));
       if (a.cancel_at_period_end) plan.append(node('small', 'Cancellation scheduled'));
@@ -333,6 +336,14 @@
   $('previous').addEventListener('click', () => { page = Math.max(0,page-1); void load(); });
   $('next').addEventListener('click', () => { page++; void load(); });
   $('show-unclassified').addEventListener('click', () => { $('audience').value = 'unclassified'; page = 0; $('account-search').value = ''; void load(); });
+  $('daily-report-accounts')?.addEventListener('click', () => {
+    $('finance-module-tab-accounts').click();
+    $('finance-module-tab-accounts').focus();
+    $('audience').value = 'customer';
+    $('account-search').value = '';
+    page = 0;
+    void load();
+  });
   $('classification-save-all').addEventListener('click', saveClassifications);
   $('finance-tab').addEventListener('click', () => activateTab('finance'));
   $('beta-tab').addEventListener('click', () => activateTab('beta'));
@@ -352,7 +363,10 @@
     const blob = new Blob(['\ufeff' + rows.map(row=>row.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob), link = node('a'); link.href = url; link.download = `studio-summary-${snapshot.audience}-${snapshot.as_of.slice(0,10)}.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
-  window.addEventListener('studio:admin-ready', () => { void load(); });
+  window.addEventListener('studio:admin-ready', () => {
+    void load();
+    if (!$('beta-pane').hidden && !betaLoaded) void loadBeta();
+  });
   window.addEventListener('studio:finance-updated', () => { void load({ preserveScroll: true }); });
   window.addEventListener('studio:admin-locked', () => { clearClassifications(); clear(); clearBeta(); });
   window.addEventListener('pagehide', () => { clearClassifications(); clear(); clearBeta(); });
