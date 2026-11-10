@@ -1,9 +1,0 @@
-.sms-auth { margin: 1rem 0; padding: 1rem 0; border-bottom: 1px solid #aaa9a3; }
-.sms-auth h3 { margin: 0 0 1rem; }
-.sms-auth label { display: block; margin: .6rem 0; }
-.sms-auth input[type="tel"], .sms-auth input[data-code] { display: block; box-sizing: border-box; width: 100%; min-height: 48px; padding: .7rem; border: 1px solid #797a77; border-radius: 0; background: #fff; color: #242925; font: inherit; font-size: 16px; }
-.sms-auth .sms-new { display: flex; align-items: flex-start; gap: .5rem; font-weight: normal; }
-.sms-auth input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 20px; margin: 0; }
-.sms-auth button { min-height: 44px; padding: .7rem 1rem; }
-.sms-auth [data-status] { overflow-wrap: anywhere; }
-.sms-auth [hidden], [data-sms-login][hidden], [data-sms-link][hidden] { display: none !important; }

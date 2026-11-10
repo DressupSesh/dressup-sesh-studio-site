@@ -1,8 +1,5 @@
 window.DRESSUP_CONFIG = {
-  // Enable only after Phone provider and delivery tests are complete.
-  smsLoginEnabled: false,
   supabaseUrl: "https://zlcjrwhdtrhtobmgpafw.supabase.co",
   supabasePublishableKey: "sb_publishable_BS4jfizO_-F3ZpUvuSSyyw_bMH1sG-D",
   turnstileSiteKey: "0x4AAAAAAEdW_jPLWIqGIKC6"
 };
-
