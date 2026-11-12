@@ -6,6 +6,7 @@ const supabase = configured ? createClient(config.supabaseUrl, config.supabasePu
 const PENDING_AUTH_ACTION_KEY = "dressupSeshPendingAuthAction";
 const PENDING_CONFIRMATION_EMAIL_KEY = "dressupSeshPendingConfirmationEmail";
 let betaSurveyRouting = false;
+let ownerUpgradeController = null;
 const activeGenerationJobs = new Set();
 const appliedGenerationJobs = new Set();
 const uncertainGenerationOperations = new Set();
@@ -147,6 +148,7 @@ if (configured) {
 function applyAccess(access) {
   if (!access) return;
   state.access = access;
+  ownerUpgradeController?.setSession(state.session, access);
   const suspended = Boolean(access.access_suspended);
   const refundNotice = $("#membership-refund-notice");
   refundNotice?.classList.toggle("hidden", !suspended);
@@ -624,6 +626,7 @@ async function refreshSession(session) {
   const access = await verifyStudioSession(session);
   state.session = access ? session : null;
   state.access = access;
+  ownerUpgradeController?.setSession(state.session, access);
   const locked = !state.session;
   document.body.classList.toggle("studio-locked", locked);
   document.body.classList.remove("auth-pending");
@@ -2340,3 +2343,10 @@ if (state.pendingConfirmationEmail) {
 if (requestedAuthIntent === "signin" && !state.session) openAuthDialog();
 render();
 
+
+// Owner-only pilot: preserves the current public MVP and all existing workflows.
+try {
+  const { createOwnerUpgrade } = await import("./owner-upgrade/controller.mjs");
+  ownerUpgradeController = createOwnerUpgrade({ client: supabase, openAuth: () => openAuthDialog() });
+  ownerUpgradeController.setSession(state.session, state.access);
+} catch (error) { console.error("Owner Listing Upgrade could not initialize", error); }
