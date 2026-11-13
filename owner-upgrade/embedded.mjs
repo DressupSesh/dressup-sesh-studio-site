@@ -2,7 +2,7 @@ import { ALLOWANCES, PLAN_NAMES, MARKETPLACES, listingLink, combinedCopy, review
 export async function mountUpgrade(host, options) {
  if(!host) return;
  host.attachShadow({mode:'open'});
- const response=await fetch('/owner-upgrade/workspace.html?v=quick-save-20261113', {signal:options.signal});
+ const response=await fetch('/owner-upgrade/workspace.html?v=draft-recovery-20261113', {signal:options.signal});
  if(!response.ok)throw new Error('Listing Upgrade could not load. Refresh to try again.');
  host.shadowRoot.innerHTML=await response.text(); // Static, same-origin application template.
  function setDraftURL(id) {
@@ -20,15 +20,16 @@ let draftID = null, activeJobs = {}, savingTimer = null, liveAccess = null, clie
 const fields = ['title', 'description', 'brand', 'size', 'condition', 'price'];
 let editPhoto = null, editImage = null, rotation = 0, nativeInstall = null, nextPhotoID = 0;
 let saveAttempt = null, savePhotoURLs = [];
+let loadingDraft = false, draftWritable = false, draftEpoch = 0, unrestoredPhotos = [], openingDraft = null;
 const objectURLs = new Set();
 const urlFor = blob => { const url = URL.createObjectURL(blob); objectURLs.add(url); return url; };
 function revoke(url) { if (url) { URL.revokeObjectURL(url); objectURLs.delete(url); } }
 function message(selector, text, error = false) { const node = $(selector); node.textContent = text; node.classList.toggle('error', error); }
 function values() { return Object.fromEntries(fields.map(key => [key, $('#' + key).value])); }
 function selected() { return state.photos.filter(photo => photo.selected); }
-function invalidate() {
+function invalidate(save = true) {
   state.revision++;
-  if (draftID) { clearTimeout(savingTimer); savingTimer = setTimeout(() => persistDraft().catch(error => message('#draft-status', error.message, true)), 800); }
+  if (draftID && save && !loadingDraft) { clearTimeout(savingTimer); savingTimer = setTimeout(() => persistDraft().catch(error => message('#draft-status', error.message, true)), 800); }
   $('#reviewed').checked = false;
   $('#quick-post').disabled = true;
   state.prepared = null;
@@ -46,6 +47,7 @@ function usage() {
 fields.forEach(key => $('#' + key).addEventListener('input', invalidate));
 
 function clearWorkspace() {
+  draftEpoch++; loadingDraft = false; draftWritable = false; unrestoredPhotos = [];
   draftID = null; activeJobs = {}; setDraftURL(null); clearTimeout(savingTimer);
   invalidate();
   for (const url of objectURLs) URL.revokeObjectURL(url);
@@ -120,6 +122,7 @@ $('#manual-load').addEventListener('click', async () => {
     reveal(original, 'manual');
     const created = await api('', { action: 'create', id: crypto.randomUUID(), kind: copyOnly ? 'free_copy' : 'upgrade', source: original }); draftID = created.draft.id;
     for (const photo of state.originals) { const ref = await uploadAsset(photo.blob, true); Object.assign(photo, {asset: ref.id, id: ref.id}); }
+    draftWritable = true;
     state.photos = state.originals.filter(p=>!p.reference).map(p => ({...p})); renderPhotos();
     setDraftURL(draftID);
     await persistDraft(); await runWorkflows();
@@ -222,6 +225,7 @@ function resetQuickSave() {
   $('#quick-post').textContent = 'Quick Save ↗';
   $('#quick-post').removeAttribute('aria-busy');
   $('#save-listing').textContent = 'Save photo + copy text';
+  $('#save-listing').removeAttribute('aria-label');
   $('#save-listing').disabled = false;
   $('#save-listing').removeAttribute('aria-busy');
   $('#save-listing').classList.remove('received');
@@ -252,11 +256,13 @@ function renderSave(attempt) {
   button.disabled = pending || received;
   button.setAttribute('aria-busy', String(pending));
   button.classList.toggle('received', received);
-  button.textContent = received ? '✓ Request received' : pending ? 'Saving photo + copying text…' : 'Try Quick Save again';
+  button.textContent = received ? '✓' : pending ? 'Saving photo + copying text…' : 'Try Quick Save again';
+  if (received) button.setAttribute('aria-label', 'Save requested and title and description copied');
+  else button.removeAttribute('aria-label');
   $('#quick-post').disabled = pending;
   $('#quick-post').setAttribute('aria-busy', String(pending));
   $('#quick-post').textContent = received ? '✓ Quick Save' : 'Quick Save ↗';
-  const photoNote = { pending: 'Choose Save Image or a destination to finish.', shared: 'Photo handed to your chosen destination.', requested: 'Check Downloads for your photo.', cancelled: 'Photo save cancelled.', failed: 'Photo save could not start.' }[attempt.photo];
+  const photoNote = { pending: 'Choose Save Image to save to Photos.', shared: 'If you chose Save Image, your photo is saved to Photos.', requested: 'Your photo file is ready to save.', cancelled: 'Photo save cancelled.', failed: 'Photo save could not start.' }[attempt.photo];
   const copyNote = { pending: 'Copying title + description…', done: 'Title + description copied.', failed: 'Text was not copied. Try again or use Help below.' }[attempt.copy];
   message('#post-status', `${copyNote} ${photoNote}`, attempt.copy === 'failed' || attempt.photo === 'failed');
 }
@@ -339,7 +345,7 @@ async function refreshAccount() {
     $('#import-button').disabled=exhausted; $('#manual-load').disabled=exhausted;
     const list=$('#draft-list');list.replaceChildren();
     const upgradeDrafts=(result.drafts||[]).filter(draft=>draft.kind==='upgrade');
-    for(const draft of upgradeDrafts){const button=action(draft.source.title||'Untitled listing',async()=>{if(state.busy)return;try{await persistDraft();await loadDraft((await api('?id='+draft.id)).draft);}catch(e){message('#draft-status',e.message,true);}},'secondary');list.append(button);}
+    for(const draft of upgradeDrafts){const button=action(draft.source.title||'Untitled listing',async()=>{if(state.busy||openingDraft)return;try{await persistDraft();await openDraft(draft.id);}catch(e){message('#draft-status',e.message,true);}},'secondary');list.append(button);}
     message('#draft-status', upgradeDrafts.length ? 'Saved to your account. Reopen a draft to continue.' : 'Your drafts will appear here.');
   }catch(e){message('#draft-status', e.message, true);}
 }
@@ -348,40 +354,72 @@ async function uploadAsset(blob, original=false) {
 }
 let saveChain=Promise.resolve();
 function persistDraft() {
-  if(!draftID)return Promise.resolve();
-  const id=draftID, snapshot=values(), photos=state.photos.slice(), jobs=JSON.parse(JSON.stringify(activeJobs));
+  if(!draftID||!draftWritable||loadingDraft||options.signal?.aborted)return Promise.resolve();
+  clearTimeout(savingTimer);
+  const id=draftID, epoch=draftEpoch, snapshot=values(), photos=state.photos.slice(), jobs=JSON.parse(JSON.stringify(activeJobs)), missing=unrestoredPhotos.map(ref=>({...ref}));
   const task=async()=>{
-    for(const photo of photos)if(!photo.asset&&!photo.job){if(id!==draftID)return;const blob=photo.blob;const ref=await uploadAsset(blob);if(photo.blob===blob)photo.asset=ref.id;}
-    if(id!==draftID)return;
-    await api('',{action:'save',id,output:{values:snapshot,jobs,photos:photos.map(p=>({id:p.id,asset:p.asset,job:p.job,label:p.label,kind:p.kind,selected:p.selected,sourceId:p.sourceId}))}});
+    for(const photo of photos)if(!photo.asset&&!photo.job){if(id!==draftID||epoch!==draftEpoch)return;const blob=photo.blob;const ref=await uploadAsset(blob);if(photo.blob===blob)photo.asset=ref.id;}
+    if(id!==draftID||epoch!==draftEpoch)return;
+    await api('',{action:'save',id,output:{values:snapshot,jobs,photos:[...photos.map(p=>({id:p.id,asset:p.asset,job:p.job,label:p.label,kind:p.kind,selected:p.selected,sourceId:p.sourceId})),...missing]}});
     message('#draft-status','Draft saved to your account.');
   };
   saveChain=saveChain.catch(()=>{}).then(task);return saveChain;
 }
-async function loadDraft(draft) {
-  clearWorkspace();draftID=draft.id;activeJobs=draft.output.jobs||{};
+async function openDraft(id) {
+  if(openingDraft)return openingDraft;
+  const task=(async()=>{const result=await api('?id='+encodeURIComponent(id));if(!options.signal?.aborted)await loadDraft(result.draft,result.jobs);})();
+  openingDraft=task;
+  try{return await task;}finally{if(openingDraft===task)openingDraft=null;}
+}
+function hasResult(operation) {
+  return operation==='listing_copy' ? !!($('#title').value.trim() && $('#description').value.trim()) : state.photos.some(p=>p.kind?.includes('Ghost mannequin') && p.blob?.size && !p.failed);
+}
+async function loadDraft(draft, serverJobs=[]) {
+  clearWorkspace();draftID=draft.id;activeJobs=structuredClone(draft.output?.jobs||{});
+  const epoch=draftEpoch, wasBusy=state.busy, output=draft.output||{};
+  const current=()=>epoch===draftEpoch && !options.signal?.aborted;
+  loadingDraft=true;state.busy=true;$('#resume-workflows').disabled=true;
+  let recovered=false, failed=false;
+  try {
+  for(const job of serverJobs||[]){
+    if(!['listing_copy','creative_image'].includes(job.operation))continue;
+    const previous=activeJobs[job.operation];
+    activeJobs[job.operation]={id:job.id,status:job.status,applied:previous?.id===job.id && previous.applied===true};
+  }
   const originals=[];
-  for(const ref of draft.originals){const r=await api(`?id=${draft.id}&asset=${ref.id}`,undefined,true);const photo=await photoFrom(await r.blob(),'Original photo','Original · optional for export',false);Object.assign(photo,{asset:ref.id,id:ref.id,reference:originals.length<(draft.source.reference_count||0)});originals.push(photo);}
+  for(const ref of draft.originals){const r=await api(`?id=${draft.id}&asset=${ref.id}`,undefined,true);const photo=await photoFrom(await r.blob(),'Original photo','Original · optional for export',false);if(!current()){revoke(photo.url);return;}Object.assign(photo,{asset:ref.id,id:ref.id,reference:originals.length<(draft.source.reference_count||0)});originals.push(photo);}
   state.originals=originals;state.photos=[];
-  for(const ref of draft.output.photos||[]){try{const photo=await restorePhoto(ref,draft.id);state.photos.push(photo);}catch{message('#photo-status','A saved photo could not be loaded. Run / resume workflows or reload before posting.',true);}}
-  if(!state.photos.length)state.photos=originals.filter(p=>!p.reference).map(p=>({...p,selected:copyOnly}));
+  for(const ref of output.photos||[]){try{const photo=await restorePhoto(ref,draft.id);if(!current()){revoke(photo.url);return;}state.photos.push(photo);}catch{if(!current())return;unrestoredPhotos.push(ref);}}
   reveal(draft.source,'live');
-  if(draft.output.values) fields.forEach(key=>{ $('#'+key).value=draft.output.values[key]||''; });
-  invalidate();
+  fields.forEach(key=>{ $('#'+key).value=output.values?.[key]||''; $('#'+key).disabled=true; });
+  invalidate(false);
   setDraftURL(draft.id);
-  message('#draft-status','Saved draft opened. Run / resume to finish any pending workflows.');
-  if(activeJobs.listing_copy?.applied) $('#copy-state').textContent='Copy ready';
-  if(state.photos.some(p=>p.kind?.includes('Ghost mannequin'))) $('#ghost-state').textContent='Image ready';
+  for(const operation of ['listing_copy','creative_image']){
+    if(activeJobs[operation]?.status!=='succeeded'||hasResult(operation))continue;
+    // Keep an edited asset reference on a failed download; never replace it with an older generated photo.
+    if(operation==='creative_image'&&unrestoredPhotos.some(p=>p.kind?.includes('Ghost')&&p.asset&&!p.job)){failed=true;continue;}
+    try{await generate(operation);if(!current())return;recovered=true;}
+    catch(error){if(!current())return;failed=true;message(operation==='listing_copy'?'#copy-state':'#ghost-state','Could not restore the saved result. Tap Resume to retry.',true);}
+  }
+  if(hasResult('listing_copy'))message('#copy-state','Copy ready');
+  if(hasResult('creative_image'))message('#ghost-state','Image ready');
+  if(unrestoredPhotos.length){failed=true;message('#photo-status','A saved photo could not load. Its saved reference is kept. Tap Resume to retry.',true);}
+  message('#result-note',failed?'A saved result could not load. Tap Resume to restore it.':recovered?'Your saved photo and copy have been restored. Review them before saving.':'Saved draft opened. Resume any unfinished work.');
+  draftWritable=true;
+  } finally {
+    if(current()){loadingDraft=false;state.busy=wasBusy;fields.forEach(key=>$('#'+key).disabled=false);$('#resume-workflows').disabled=false;}
+  }
+  if(current()&&recovered)await persistDraft();
 }
 async function restorePhoto(ref,id) {
   const r=await api(ref.job?`?job=${ref.job}&result=1`:`?id=${id}&asset=${ref.asset}`,undefined,true);
-  let blob;if(ref.kind?.includes('Ghost')){const data=await r.json();blob=await (await fetch(`data:${data.mimeType||'image/jpeg'};base64,${data.image}`)).blob();}else blob=await r.blob();
+  let blob;if(ref.job && ref.kind?.includes('Ghost')){const data=await r.json();blob=await (await fetch(`data:${data.mimeType||'image/jpeg'};base64,${data.image}`)).blob();}else blob=await r.blob();
   return Object.assign(await photoFrom(blob,ref.label,ref.kind,ref.selected),ref);
 }
 async function generate(operation, original=null, retry=false) {
-  const id=draftID, key=operation+(original?':'+original.id:'');
+  const id=draftID, epoch=draftEpoch, key=operation+(original?':'+original.id:'');
   const previous=activeJobs[key];
-  if (previous?.status === 'succeeded' && previous.applied && !retry) return;
+  if (previous?.status === 'succeeded' && previous.applied && !retry && hasResult(operation)) return;
   if(retry && previous?.status==='unknown')throw new Error('This request has an unknown status. Resume it or contact support before retrying.');
   if(!previous || retry) activeJobs[key]={id:crypto.randomUUID(),status:'pending'};
   const job=activeJobs[key];
@@ -394,7 +432,7 @@ async function generate(operation, original=null, retry=false) {
   message(statusNode,'Processing…');
   let result;
   for(let n=0;n<100;n++){
-    if(id!==draftID)return;
+    if(id!==draftID||epoch!==draftEpoch||options.signal?.aborted)return;
     result=await api('?job='+job.id);job.status=result.job.status;
     if(job.status==='succeeded')break;
     if(job.status==='failed'){if(result.job.error_code==='STATUS_UNKNOWN')job.status='unknown';await persistDraft();throw new Error(result.job.error||'Processing failed. Try this workflow again.');}
@@ -402,15 +440,24 @@ async function generate(operation, original=null, retry=false) {
   }
   if(job.status!=='succeeded'){job.status='unknown';await persistDraft();throw new Error('Still processing. Reopen this draft and resume to check the result.');}
   const response=await api('?job='+job.id+'&result=1',undefined,true);
+  if(id!==draftID||epoch!==draftEpoch||options.signal?.aborted)return;
   if(operation==='listing_copy'){
     const result=await response.json(), lines=String(result.listing||'').trim().split('\n');
-    $('#title').value=lines.shift()||'';$('#description').value=lines.join('\n').trim();message('#copy-state','Copy ready');
+    const title=lines.shift()||'',description=lines.join('\n').trim();
+    if(!title.trim()||!description)throw new Error('The saved copy is incomplete. Try Resume again.');
+    if(id!==draftID||epoch!==draftEpoch||options.signal?.aborted)return;
+    const restoring=previous?.applied&&!retry;
+    if(!restoring||!$('#title').value.trim())$('#title').value=title;
+    if(!restoring||!$('#description').value.trim())$('#description').value=description;
+    message('#copy-state','Copy ready');
   }else{
     let blob;if(operation==='creative_image'){const data=await response.json();blob=await(await fetch(`data:${data.mimeType||'image/jpeg'};base64,${data.image}`)).blob();}else blob=await response.blob();
     const old=state.photos.find(p=>p.job && (p.job===previous?.id||p.job===job.id));
     const photo=await photoFrom(blob,operation==='creative_image'?'Ghost mannequin':`Clean photo ${state.originals.indexOf(original)+1}`,operation==='creative_image'?'Ghost mannequin · AI styling':'Background removed',true);
+    if(id!==draftID||epoch!==draftEpoch||options.signal?.aborted){revoke(photo.url);return;}
     Object.assign(photo,{job:job.id,sourceId:original?.id});
     if(old){revoke(old.url);state.photos[state.photos.indexOf(old)]=photo;}else state.photos.push(photo);
+    unrestoredPhotos=unrestoredPhotos.filter(ref=>ref.job!==job.id);
     renderPhotos();message(statusNode,operation==='creative_image'?'Image ready':`${Object.entries(activeJobs).filter(([k,v])=>k.startsWith('background_remove')&&v.status==='succeeded').length} / ${state.originals.length} ready`);
   }
   job.applied=true; invalidate();await persistDraft();
@@ -418,8 +465,10 @@ async function generate(operation, original=null, retry=false) {
 async function runWorkflows() {
   if(!draftID||!state.originals.length)throw new Error('Add your listing photos first.');
   state.busy=true;$('#resume-workflows').disabled=true;fields.forEach(key=>$('#'+key).disabled=true);invalidate();
+  for(const ref of [...unrestoredPhotos]){try{const photo=await restorePhoto(ref,draftID);state.photos.push(photo);unrestoredPhotos=unrestoredPhotos.filter(p=>p!==ref);}catch{/* Keep the reference for another Resume. */}}
+  renderPhotos();
   const tasks=[['listing_copy',null],['creative_image',null]];let errors=0;
-  async function worker(){while(tasks.length){const [op,photo]=tasks.shift();const key=op+(photo?':'+photo.id:'');try{await generate(op,photo,activeJobs[key]?.status==='failed');}catch(e){errors++;message(op==='listing_copy'?'#copy-state':op==='creative_image'?'#ghost-state':'#bg-state',e.message,true);}}}
+  async function worker(){while(tasks.length){const [op,photo]=tasks.shift();const key=op+(photo?':'+photo.id:'');try{if(op==='creative_image'&&unrestoredPhotos.some(p=>p.kind?.includes('Ghost')&&p.asset&&!p.job))throw new Error('Your saved photo could not load. Resume to retry; your edit is still saved.');await generate(op,photo,activeJobs[key]?.status==='failed');}catch(e){errors++;message(op==='listing_copy'?'#copy-state':op==='creative_image'?'#ghost-state':'#bg-state',e.message,true);}}}
   try{await Promise.all([worker(),worker()]);message('#result-note',errors?'Some results need attention. Your completed results are saved; use Run / resume to continue.':(copyOnly?'Your copy is ready. Check the details, make your edits, then review to copy it.':'Your upgrade is ready. Edit your main photo and copy, then check the review box.'));}
   finally{state.busy=false;fields.forEach(key=>$('#'+key).disabled=false);$('#resume-workflows').disabled=false;await persistDraft();await refreshAccount();}
 }
@@ -437,7 +486,7 @@ async function updateSession() {
  if(!data.session){clearWorkspace();liveAccess=null;usage();$('#draft-list').replaceChildren();options.onAccess(null);return;}
  await refreshAccount();
  const id=new URLSearchParams(location.search).get('draft');
- if(id&&liveAccess&&!draftID)try{await loadDraft((await api('?id='+encodeURIComponent(id))).draft);}catch(e){message('#draft-status',e.message,true);}
+ if(id&&liveAccess&&!draftID)try{await openDraft(id);}catch(e){message('#draft-status',e.message,true);}
 }
 window.addEventListener('studio:session',()=>{void updateSession();}, {signal:options.signal});
 window.addEventListener('studio:allowances-refresh',()=>{void refreshAccount();}, {signal:options.signal});
