@@ -9,6 +9,12 @@
   let classificationSaving = false, classificationEpoch = 0;
   let classificationMessage = '', classificationError = false;
   const number = value => Number(value || 0).toLocaleString('en-US');
+  function accountBalance(account, key) {
+    const activePaid = account.plan === 'paid' && ['active', 'trialing'].includes(account.subscription_status) && !account.access_suspended;
+    // Older dashboard responses still calculate the retired paid copy cap.
+    if (account.plan === 'owner' || (activePaid && key === 'copy_remaining')) return 'Unlimited';
+    return number(account[key]);
+  }
   const dollars = value => (Number(value) / 1000000).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const money = value => (Number(value || 0) / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const date = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Never';
@@ -134,7 +140,7 @@
       if (a.cancel_at_period_end) plan.append(node('small', 'Cancellation scheduled'));
       if (a.current_period_end) plan.append(node('small', `Period ends ${date(a.current_period_end)}`));
       row.append(email, node('td', a.audience), plan);
-      for (const key of ['background_remaining','copy_remaining','creative_remaining']) row.append(node('td', a.plan === 'owner' ? 'Unlimited' : number(a[key])));
+      for (const key of ['background_remaining','copy_remaining','creative_remaining']) row.append(node('td', accountBalance(a, key)));
       row.append(node('td', date(a.last_sign_in_at)));
       const action = node('td');
       if (a.plan === 'owner') action.textContent = 'Owner';

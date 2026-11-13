@@ -145,6 +145,11 @@ if (configured) {
   $("#connection-copy").textContent = "Listing connection ready";
 }
 
+function copyBalanceLabel(access) {
+  return !access.access_suspended && (access.owner || (access.paid && access.copy_remaining === null))
+    ? "Unlimited" : Math.max(0, Number(access.copy_remaining || 0));
+}
+
 function applyAccess(access) {
   if (!access) return;
   state.access = access;
@@ -165,10 +170,10 @@ function applyAccess(access) {
     elements.usagePill.textContent = "UNLIMITED ACCESS";
   } else if (access.paid) {
     const background = Math.max(0, Number(access.background_remaining || 0));
-    const copy = Math.max(0, Number(access.copy_remaining || 0));
+    const copy = copyBalanceLabel(access);
     const creative = Math.max(0, Number(access.creative_remaining || 0));
     elements.usagePill.textContent = `BG ${background} · COPY ${copy} · CREATIVE ${creative}`;
-    elements.usagePill.setAttribute("aria-label", `${background} photo cleanup, ${copy} listing copy, and ${creative} creative image credits available`);
+    elements.usagePill.setAttribute("aria-label", `${background} photo cleanup, ${copy === "Unlimited" ? "unlimited listing copy" : `${copy} listing copy credits`}, and ${creative} creative image credits available`);
   } else {
     const remaining = Math.max(0, Number(access.items_remaining || 0));
     elements.usagePill.textContent = `${remaining} FREE ITEM${remaining === 1 ? "" : "S"} LEFT`;
@@ -229,10 +234,10 @@ function renderBilling(access = state.access) {
   const owner = Boolean(access.owner);
   const itemsRemaining = owner ? "∞" : Math.max(0, Number(access.items_remaining || 0));
   const backgroundRemaining = owner ? "∞" : Math.max(0, Number(access.background_remaining || 0));
-  const copyRemaining = owner ? "∞" : Math.max(0, Number(access.copy_remaining || 0));
+  const copyRemaining = owner ? "∞" : copyBalanceLabel(access);
   const creativeRemaining = owner ? "∞" : Math.max(0, Number(access.creative_remaining || 0));
   const bonusBackground = Math.max(0, Number(access.bonus_background_credits || 0));
-  const bonusCopy = Math.max(0, Number(access.bonus_copy_credits || 0));
+  const bonusCopy = copyRemaining === "Unlimited" ? 0 : Math.max(0, Number(access.bonus_copy_credits || 0));
   const bonusCreative = Math.max(0, Number(access.bonus_creative_credits || 0));
   const bonusTotal = bonusBackground + bonusCopy + bonusCreative;
 
@@ -244,7 +249,7 @@ function renderBilling(access = state.access) {
   elements.billingCreditRows.classList.toggle("hidden", !owner && !paid && !suspended);
   elements.billingBonusNote.classList.toggle("hidden", !paid || bonusTotal === 0);
   elements.billingBonusNote.textContent = bonusTotal > 0
-    ? `Includes saved trial credits: ${bonusBackground} photo cleanup, ${bonusCopy} copy and ${bonusCreative} creative.`
+    ? `Includes saved trial credits: ${bonusBackground} photo cleanup${copyRemaining === "Unlimited" ? "" : `, ${bonusCopy} copy`} and ${bonusCreative} creative.`
     : "";
 
   elements.billingPlanTitle.textContent = owner ? "Studio Owner" : suspended ? "Membership refunded" : paid ? "Private Beta" : "Free Studio Trial";
@@ -255,7 +260,7 @@ function renderBilling(access = state.access) {
     : paid
       ? access.cancel_at_period_end
         ? `Your plan remains active through ${formatBillingDate(access.current_period_end)}.`
-        : "Your monthly credits are designed for 20 items+; your mix depends on how you use them."
+        : copyRemaining === "Unlimited" ? "Your membership includes unlimited listing copy every month, plus your photo cleanup and creative image allowances." : "Your monthly credits are designed for 20 items+; your mix depends on how you use them."
       : "Three free listings share 15 photo cleanups, 3 copy generations and 3 creative images.";
   elements.billingSubscribe.classList.toggle("hidden", owner || paid);
   elements.billingAddCredits.classList.toggle("hidden", owner || !paid);
