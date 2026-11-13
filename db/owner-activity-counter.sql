@@ -20,3 +20,6 @@ grant execute on function private.studio_founder_counter(),public.studio_founder
 grant execute on function private.studio_founder_counter_save(date,integer),public.studio_founder_counter_save(date,integer),private.studio_owner_activity(),public.studio_owner_activity() to authenticated;
 commit;
 revoke all on function private.studio_founder_counter_save(date,integer),public.studio_founder_counter_save(date,integer),private.studio_owner_activity(),public.studio_owner_activity() from anon;
+-- Narrow public projection without granting anonymous access to the private schema.
+alter function public.studio_founder_counter() security definer;
+comment on function public.studio_founder_counter() is 'Intentional public projection: exposes only founder monthly listing count, month and update timestamp; no customer records or mutation.';
