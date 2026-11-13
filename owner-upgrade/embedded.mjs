@@ -2,7 +2,7 @@ import { ALLOWANCES, PLAN_NAMES, MARKETPLACES, listingLink, combinedCopy, review
 export async function mountUpgrade(host, options) {
  if(!host) return;
  host.attachShadow({mode:'open'});
- const response=await fetch('/owner-upgrade/workspace.html?v=save-polish-20261113', {signal:options.signal});
+ const response=await fetch('/owner-upgrade/workspace.html?v=posh-app-20261113', {signal:options.signal});
  if(!response.ok)throw new Error('Listing Upgrade could not load. Refresh to try again.');
  host.shadowRoot.innerHTML=await response.text(); // Static, same-origin application template.
  function setDraftURL(id) {
@@ -312,6 +312,13 @@ $('#copy-again').addEventListener('click', () => {
 for (const market of MARKETPLACES) {
   const link = document.createElement('a'); link.href = market.url; link.target = '_blank'; link.rel = 'noopener noreferrer external';
   const text = document.createElement('span'); text.textContent = market.name;
+  if (market.name === 'Poshmark' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))) {
+    link.href = /Android/i.test(navigator.userAgent) ? 'intent://#Intent;scheme=poshmark;package=com.poshmark.app;end' : 'poshmark://';
+    link.removeAttribute('target');
+    link.setAttribute('aria-label', 'Open Poshmark app');
+    const fallback = document.createElement('a'); fallback.href = market.url; fallback.target = '_blank'; fallback.rel = 'noopener noreferrer'; fallback.textContent = 'Open Poshmark website';
+    $('#save-help').append(fallback);
+  }
   const arrow = document.createElement('span'); arrow.className = 'external-arrow'; arrow.setAttribute('aria-hidden', 'true');
   link.append(text, arrow); $('#post-links').append(link);
 }
