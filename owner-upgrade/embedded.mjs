@@ -2,7 +2,7 @@ import { ALLOWANCES, PLAN_NAMES, MARKETPLACES, listingLink, combinedCopy, review
 export async function mountUpgrade(host, options) {
  if(!host) return;
  host.attachShadow({mode:'open'});
- const response=await fetch('/owner-upgrade/workspace.html?v=draft-recovery-20261113', {signal:options.signal});
+ const response=await fetch('/owner-upgrade/workspace.html?v=save-polish-20261113', {signal:options.signal});
  if(!response.ok)throw new Error('Listing Upgrade could not load. Refresh to try again.');
  host.shadowRoot.innerHTML=await response.text(); // Static, same-origin application template.
  function setDraftURL(id) {
@@ -262,7 +262,7 @@ function renderSave(attempt) {
   $('#quick-post').disabled = pending;
   $('#quick-post').setAttribute('aria-busy', String(pending));
   $('#quick-post').textContent = received ? '✓ Quick Save' : 'Quick Save ↗';
-  const photoNote = { pending: 'Choose Save Image to save to Photos.', shared: 'If you chose Save Image, your photo is saved to Photos.', requested: 'Your photo file is ready to save.', cancelled: 'Photo save cancelled.', failed: 'Photo save could not start.' }[attempt.photo];
+  const photoNote = { pending: 'Choose Save Image to save to Photos.', shared: 'Photo exported.', requested: 'Photo download started.', cancelled: 'Photo save cancelled.', failed: 'Photo save could not start.' }[attempt.photo];
   const copyNote = { pending: 'Copying title + description…', done: 'Title + description copied.', failed: 'Text was not copied. Try again or use Help below.' }[attempt.copy];
   message('#post-status', `${copyNote} ${photoNote}`, attempt.copy === 'failed' || attempt.photo === 'failed');
 }

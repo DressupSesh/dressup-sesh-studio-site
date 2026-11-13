@@ -2351,7 +2351,7 @@ render();
 
 // Owner-only pilot: preserves the current public MVP and all existing workflows.
 try {
-  const { createOwnerUpgrade } = await import("./owner-upgrade/controller.mjs?v=draft-recovery-20261113");
+  const { createOwnerUpgrade } = await import("./owner-upgrade/controller.mjs?v=save-polish-20261113");
   ownerUpgradeController = createOwnerUpgrade({ client: supabase, openAuth: () => openAuthDialog() });
   ownerUpgradeController.setSession(state.session, state.access);
 } catch (error) { console.error("Owner Listing Upgrade could not initialize", error); }
