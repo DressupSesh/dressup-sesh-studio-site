@@ -2,7 +2,7 @@ import { ALLOWANCES, PLAN_NAMES, MARKETPLACES, listingLink, combinedCopy, review
 export async function mountUpgrade(host, options) {
  if(!host) return;
  host.attachShadow({mode:'open'});
- const response=await fetch('/owner-upgrade/workspace.html?v=compare-20261113', {signal:options.signal});
+ const response=await fetch('/owner-upgrade/workspace.html?v=quick-save-20261113', {signal:options.signal});
  if(!response.ok)throw new Error('Listing Upgrade could not load. Refresh to try again.');
  host.shadowRoot.innerHTML=await response.text(); // Static, same-origin application template.
  function setDraftURL(id) {
@@ -19,6 +19,7 @@ const copyOnly = false;
 let draftID = null, activeJobs = {}, savingTimer = null, liveAccess = null, client = options.client, authCaptcha = null;
 const fields = ['title', 'description', 'brand', 'size', 'condition', 'price'];
 let editPhoto = null, editImage = null, rotation = 0, nativeInstall = null, nextPhotoID = 0;
+let saveAttempt = null, savePhotoURLs = [];
 const objectURLs = new Set();
 const urlFor = blob => { const url = URL.createObjectURL(blob); objectURLs.add(url); return url; };
 function revoke(url) { if (url) { URL.revokeObjectURL(url); objectURLs.delete(url); } }
@@ -31,6 +32,7 @@ function invalidate() {
   $('#reviewed').checked = false;
   $('#quick-post').disabled = true;
   state.prepared = null;
+  resetQuickSave();
   $('#review-label').classList.remove('attention');
   message('#review-status', state.mode ? 'Review your latest changes to enable Quick Save.' : '');
   $('#title-count').textContent = `${$('#title').value.length} / 200`;
@@ -199,48 +201,112 @@ $('#reviewed').addEventListener('change', async event => {
     message('#review-status', copyOnly ? 'Your title and description are ready to copy.' : `${files.length} photo${files.length === 1 ? '' : 's'} and your copy are ready.`);
   } catch (error) { $('#reviewed').checked = false; message('#review-status', error.message, true); }
 });
-function copyText(text, status = '#post-copy-status') {
-  const report = success => { message(status, success ? 'Copied. Your title and description are ready to paste.' : 'Copy was blocked. Use the copy button again or select the text under “Need separate fields?”.', !success); return success; };
-  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).then(() => report(true), () => report(false));
-  const area = $('#copy-fallback'); area.value = text; area.closest('details').open = true; area.focus(); area.select();
-  try { return Promise.resolve(report(document.execCommand('copy'))); } catch { return Promise.resolve(report(false)); }
+function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) return Promise.resolve(navigator.clipboard.writeText(text)).then(() => true, () => false);
+    const area = $('#copy-fallback'), help = $('#save-help'), wasOpen = help.open;
+    area.value = text; help.open = true; area.focus(); area.select();
+    const copied = document.execCommand('copy');
+    if (copied) help.open = wasOpen;
+    return Promise.resolve(copied);
+  } catch { return Promise.resolve(false); }
 }
-function individualPhotos() {
+function resetQuickSave() {
+  saveAttempt = null;
+  for (const url of savePhotoURLs) revoke(url);
+  savePhotoURLs = [];
+  $('#individual-photos').replaceChildren();
+  $('#copy-fallback').value = '';
+  $('#save-help').open = false;
+  $('#post-dialog').close();
+  $('#quick-post').textContent = 'Quick Save ↗';
+  $('#quick-post').removeAttribute('aria-busy');
+  $('#save-listing').textContent = 'Save photo + copy text';
+  $('#save-listing').disabled = false;
+  $('#save-listing').removeAttribute('aria-busy');
+  $('#save-listing').classList.remove('received');
+  message('#post-status', '');
+}
+function individualPhotos(prepared) {
+  for (const url of savePhotoURLs) revoke(url);
+  savePhotoURLs = [];
   const container = $('#individual-photos'); container.replaceChildren();
-  state.prepared.files.forEach((file, index) => {
-    const link = document.createElement('a'); link.href = urlFor(file); link.download = file.name; link.target = '_blank'; link.className = 'secondary'; link.textContent = `Save Photo ${index + 1}`; container.append(link);
-  });
-  container.hidden = false;
-  message('#post-save-status', 'Tap each photo to save it. On iPhone, open a photo and use Share → Save Image if needed.');
-}
-function canShareFiles() { try { return !!(state.prepared && navigator.share && navigator.canShare?.({ files: state.prepared.files })); } catch { return false; } }
-function sharePhotos() {
-  if (!canShareFiles()) { individualPhotos(); return; }
-  // Invoked directly from a click, with files prepared ahead of time for iOS user activation.
-  navigator.share({ files: state.prepared.files }).then(() => message('#post-save-status', 'Share sheet completed. Confirm the photos were saved to your chosen location.'), error => {
-    message('#post-save-status', error.name === 'AbortError' ? 'Save / share cancelled. Tap Save / share photos to try again, or save the individual photos below.' : 'Sharing was unavailable. Save the individual photos below or try again.', error.name !== 'AbortError');
+  prepared.files.forEach(file => {
+    const link = document.createElement('a'); link.href = urlFor(file); savePhotoURLs.push(link.href);
+    link.download = file.name; link.target = '_blank'; link.rel = 'noopener'; link.className = 'secondary'; link.textContent = 'Open / download photo'; container.append(link);
   });
 }
-$('#quick-post').addEventListener('click', () => {
-  if (!state.prepared || !$('#reviewed').checked || state.prepared.revision !== state.revision) { invalidate(); return; }
-  $('#copy-fallback').value = state.prepared.copy;
-  individualPhotos();
-  $('#post-dialog').showModal();
-  message('#post-save-status', 'Preparing your photo handoff…');
-  copyText(state.prepared.copy);
-  if(copyOnly){$('#individual-photos').hidden=true;message('#post-save-status','');}
-  else if (canShareFiles() && /iPhone|iPad|Android/i.test(navigator.userAgent)) sharePhotos();
-  else { individualPhotos(); const link=$('#individual-photos a'); if(link)link.click(); }
+function shouldShareFiles(prepared) {
+  const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  try { return !!(mobile && navigator.share && navigator.canShare?.({ files: prepared.files })); } catch { return false; }
+}
+function currentSave(attempt) { return saveAttempt === attempt && state.prepared === attempt.prepared && !options.signal?.aborted; }
+function renderSave(attempt) {
+  if (!currentSave(attempt)) return;
+  const pending = attempt.copy === 'pending' || attempt.photo === 'pending';
+  const photoAccepted = ['pending', 'shared', 'requested'].includes(attempt.photo);
+  const received = attempt.copy === 'done' && photoAccepted;
+  attempt.pending = pending;
+  attempt.received = received;
+  const button = $('#save-listing');
+  button.disabled = pending || received;
+  button.setAttribute('aria-busy', String(pending));
+  button.classList.toggle('received', received);
+  button.textContent = received ? '✓ Request received' : pending ? 'Saving photo + copying text…' : 'Try Quick Save again';
+  $('#quick-post').disabled = pending;
+  $('#quick-post').setAttribute('aria-busy', String(pending));
+  $('#quick-post').textContent = received ? '✓ Quick Save' : 'Quick Save ↗';
+  const photoNote = { pending: 'Choose Save Image or a destination to finish.', shared: 'Photo handed to your chosen destination.', requested: 'Check Downloads for your photo.', cancelled: 'Photo save cancelled.', failed: 'Photo save could not start.' }[attempt.photo];
+  const copyNote = { pending: 'Copying title + description…', done: 'Title + description copied.', failed: 'Text was not copied. Try again or use Help below.' }[attempt.copy];
+  message('#post-status', `${copyNote} ${photoNote}`, attempt.copy === 'failed' || attempt.photo === 'failed');
+}
+function quickSave({again = false} = {}) {
+  if (options.signal?.aborted) return;
+  const prepared = state.prepared;
+  if (!prepared || !$('#reviewed').checked || prepared.revision !== state.revision) { invalidate(); return; }
+  if (!$('#post-dialog').open) $('#post-dialog').showModal();
+  if (saveAttempt?.pending || (saveAttempt?.received && !again)) return;
+  const previousPhoto = saveAttempt?.photo;
+  const attempt = { prepared, copy: 'pending', photo: 'pending', pending: true };
+  saveAttempt = attempt;
+  $('#copy-fallback').value = prepared.copy;
+  individualPhotos(prepared);
+  message('#help-status', '');
+  renderSave(attempt);
+  // Start both APIs within the original click. Awaiting clipboard first loses iOS share activation.
+  copyText(prepared.copy).then(ok => { if (currentSave(attempt)) { attempt.copy = ok ? 'done' : 'failed'; renderSave(attempt); } });
+  if (!again && ['requested', 'shared'].includes(previousPhoto)) { attempt.photo = previousPhoto; renderSave(attempt); return; }
+  if (shouldShareFiles(prepared)) {
+    try {
+      Promise.resolve(navigator.share({ files: prepared.files })).then(() => {
+        if (currentSave(attempt)) { attempt.photo = 'shared'; renderSave(attempt); }
+      }, error => {
+        if (currentSave(attempt)) { attempt.photo = error.name === 'AbortError' ? 'cancelled' : 'failed'; renderSave(attempt); }
+      });
+    } catch { attempt.photo = 'failed'; renderSave(attempt); }
+  } else {
+    try { $('#individual-photos a').click(); attempt.photo = 'requested'; }
+    catch { attempt.photo = 'failed'; }
+    renderSave(attempt);
+  }
+}
+$('#quick-post').addEventListener('click', () => quickSave());
+$('#save-listing').addEventListener('click', () => quickSave());
+$('#save-again').addEventListener('click', () => quickSave({again: true}));
+$('#copy-again').addEventListener('click', () => {
+  const prepared = state.prepared;
+  if (!prepared || options.signal?.aborted) return;
+  copyText(prepared.copy).then(ok => {
+    if (state.prepared !== prepared || options.signal?.aborted) return;
+    message('#help-status', ok ? 'Title + description copied.' : 'Select the text below and copy it manually.', !ok);
+    if (saveAttempt) { saveAttempt.copy = ok ? 'done' : 'failed'; renderSave(saveAttempt); }
+  });
 });
-$('#copy-again').addEventListener('click', () => state.prepared && copyText(state.prepared.copy));
-$('#copy-title').addEventListener('click', () => state.prepared && copyText(state.prepared.title).then(ok => { if (ok) message('#post-copy-status', 'Title copied.'); }));
-$('#copy-description').addEventListener('click', () => state.prepared && copyText(state.prepared.description).then(ok => { if (ok) message('#post-copy-status', 'Description copied.'); }));
-$('#save-phone').addEventListener('click', sharePhotos);
 
 for (const market of MARKETPLACES) {
   const link = document.createElement('a'); link.href = market.url; link.target = '_blank'; link.rel = 'noopener noreferrer external';
   const text = document.createElement('span'); text.textContent = market.name;
-  const arrow = document.createElement('span'); arrow.textContent = '↗'; arrow.setAttribute('aria-hidden', 'true');
+  const arrow = document.createElement('span'); arrow.className = 'external-arrow'; arrow.setAttribute('aria-hidden', 'true');
   link.append(text, arrow); $('#post-links').append(link);
 }
 $('#start-over').addEventListener('click', () => { if(state.busy){message('#result-note','Let the current workflows finish before starting another listing.');return;} $('#reset-dialog').showModal(); });
