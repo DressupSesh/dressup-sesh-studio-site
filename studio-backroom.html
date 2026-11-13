@@ -9,10 +9,10 @@
 <meta content="no-referrer" name="referrer">
 <meta content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://zlcjrwhdtrhtobmgpafw.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; upgrade-insecure-requests" http-equiv="Content-Security-Policy">
 <title>Studio Back Room · Dressup Sesh</title>
-<link href="studio-backroom.css?v=draft-image-test-20261010-20261009" rel="stylesheet">
-<link href="studio-backroom-finance.css?v=20261009" rel="stylesheet">
-<link href="studio-backroom-pnl.css?v=20261015" rel="stylesheet">
-<link href="studio-backroom-sprint.css?v=20261015" rel="stylesheet">
+<link href="studio-backroom.css?v=release-20261113" rel="stylesheet">
+<link href="studio-backroom-finance.css?v=release-20261113" rel="stylesheet">
+<link href="studio-backroom-pnl.css?v=release-20261113" rel="stylesheet">
+<link href="studio-backroom-sprint.css?v=release-20261113" rel="stylesheet">
 </head>
 <body>
 <header class="masthead"><a class="wordmark" href="./">DRESSUP SESH <span>STUDIO BACK ROOM</span></a><div class="header-actions"><span class="private-label">OWNER ONLY</span><button class="ds-hidden" id="sign-out" type="button">Sign out</button></div></header>
@@ -64,13 +64,32 @@
 <article class="metric"><span>New browsers</span><strong id="traffic-new">—</strong><small id="traffic-new-window"></small></article>
 <article class="metric"><span>Page views</span><strong id="traffic-views">—</strong><small id="traffic-view-window"></small></article>
 </div><p id="traffic-status" role="status" aria-live="polite">Owner verification required.</p><p id="traffic-caption" class="caption"></p><p class="caption">A visit groups page loads from one browser until 30 minutes without a tracked page view. New browsers means first observed since this measurement began; browsers are not people. Counts include all measured pages, including your testing. Account group filters do not change these counts. Earlier repeat visits cannot be reconstructed.</p>
-<details><summary>Pages and sources</summary><div class="two-col"><div class="table-scroll"><table><caption>Pages in the selected window</caption><thead><tr><th>Page</th><th>Visits</th><th>Page views</th></tr></thead><tbody id="traffic-pages"></tbody></table></div><div class="table-scroll"><table><caption>First recorded campaign source · top 20</caption><thead><tr><th>Source</th><th>Visits</th><th>Page views</th></tr></thead><tbody id="traffic-sources"></tbody></table></div></div><p class="caption">One visit can include several pages; page counts do not add up to distinct site visits. Direct means no recorded campaign code.</p></details></section>
+<details><summary>Pages and sources</summary><div class="two-col"><div class="table-scroll"><table><caption>Pages in the selected window</caption><thead><tr><th>Page</th><th>Visits</th><th>Page views</th></tr></thead><tbody id="traffic-pages"></tbody></table></div><div class="table-scroll"><table><caption>First recorded campaign source · top 20</caption><thead><tr><th>Source</th><th>Visits</th><th>Page views</th></tr></thead><tbody id="traffic-sources"></tbody></table></div></div><p class="caption">One visit can include several pages; page counts do not add up to distinct site visits. Direct means no recorded campaign code.</p></details></section><section class="panel daily-report" aria-labelledby="daily-report-heading">
+<div class="section-heading"><div><p class="eyebrow">J9 VENTURES · STUDIO OPERATIONS</p><h2 id="daily-report-heading">Daily report</h2></div>
+<div class="daily-report-actions"><label>Compare today with <select id="daily-report-window"><option value="last_30_days">Last 30 days</option><option value="this_month">This month</option></select></label><button id="daily-report-refresh" type="button">Refresh report</button></div></div>
+<p id="daily-report-status" role="status">Waiting for Studio records…</p>
+<div id="daily-report-data" hidden>
+<div class="table-scroll"><table><caption>Activity in Pacific time</caption><thead><tr><th scope="col">Metric</th><th scope="col">Today</th><th scope="col" id="daily-report-comparison">Last 30 days</th></tr></thead><tbody id="daily-report-rows"></tbody></table></div>
+<p class="caption">Customer rows use saved labels. Signups use the account creation date. Classifications use the date you saved the Customer label. Activity means at least one successful operation. Trials show recorded progress. Some direct Studio accounts enter the trial tracker only after three qualifying items. Site visits include all tracked browsers, including testing.</p>
+<p class="caption">Usage covers all accounts. Listing Upgrades counts starts. Copy, backgrounds and creative images count successful operations. Cost estimates cover recorded operations with pricing and can be lower than provider charges.</p>
+<p class="caption" id="daily-report-coverage"></p>
+<div class="section-heading"><h3>Current totals</h3><button class="text-button" id="daily-report-accounts" type="button">Review customer accounts</button></div><dl class="facts" id="daily-report-totals"></dl>
+<p class="caption" id="daily-report-billing"></p>
+<h3>Provider balances</h3>
+<ul class="daily-report-links"><li><a href="https://platform.openai.com/settings/organization/billing/overview" rel="noopener noreferrer" target="_blank">OpenAI billing ↗</a></li><li><a href="https://replicate.com/account/billing" rel="noopener noreferrer" target="_blank">Replicate billing ↗</a></li><li><a href="https://dashboard.stripe.com/payments" rel="noopener noreferrer" target="_blank">Stripe payments ↗</a></li></ul>
+<p class="caption">Provider balances are available in the linked billing dashboards.</p>
+<h3>Ads and campaign tracking</h3>
+<p class="caption">Live Meta and TikTok ad spend and social profile visits are unavailable here. Recorded campaign amounts are listed below without a date filter.</p>
+<ul id="daily-report-campaigns"></ul>
+<ul class="daily-report-links"><li><a href="#beta/pushes">Campaign records</a></li><li><a href="https://adsmanager.facebook.com/" rel="noopener noreferrer" target="_blank">Meta Ads Manager ↗</a></li><li><a href="https://ads.tiktok.com/" rel="noopener noreferrer" target="_blank">TikTok Ads Manager ↗</a></li></ul>
+</div></section>
+
 <section aria-label="Account overview" class="kpis">
 <article class="panel metric"><span>Accounts</span><strong id="accounts-total">—</strong><small id="accounts-new"></small></article>
 <article class="panel metric"><span>Email confirmed</span><strong id="confirmed-total">—</strong><small>Current accounts in this group</small></article>
 <article class="panel metric"><span>Active users</span><strong id="active-total">—</strong><small>At least one successful operation in window</small></article>
 <article class="panel metric"><span>Active plan records</span><strong id="paid-total">—</strong><small id="paid-note">Account state; compare live subscriptions below</small></article>
-</section></div>
+</section><section class="panel" aria-labelledby="install-feedback-heading"><div class="section-heading"><div><p class="eyebrow">HOME SCREEN FOLLOW-UP</p><h2 id="install-feedback-heading">Saving Studio as an app</h2></div><button id="install-feedback-refresh" type="button">Refresh responses</button></div><p id="install-feedback-status" role="status">Owner verification required.</p><div id="install-feedback-data" hidden><p><strong id="install-feedback-done">—</strong> chose Done · <strong id="install-feedback-problems">—</strong> reported a problem</p><p class="caption">Done is the visitor’s confirmation, not automatic installation detection. Guest responses appear without an account.</p><div class="table-scroll"><table><thead><tr><th>When</th><th>Account</th><th>Response</th><th>Device</th><th>Details</th></tr></thead><tbody id="install-feedback-rows"></tbody></table></div></div></section></div>
 <div id="finance-module-pnl" data-module-group="finance" data-module-id="pnl" role="tabpanel" aria-labelledby="finance-module-tab-pnl" tabindex="0">
 <section class="panel pnl-intro"><p class="eyebrow">J9 VENTURES · OPERATING COSTS</p><h2>P&amp;L &amp; subscriptions</h2><p>Keep every subscription in view. Record what was paid, what is due, and what changes next.</p>
 <form id="pnl-filters" class="filter-bar"><label>From<input type="date" id="pnl-from" required></label><label>Through<input type="date" id="pnl-through" required></label><button type="submit">Refresh P&amp;L</button><button type="button" id="pnl-export" disabled>Export CSV</button></form>
@@ -166,11 +185,11 @@
 </div>
 </main>
 <footer>STUDIO BACK ROOM <span>Private business operations · Separate from the shop</span></footer>
-<script src="config.js"></script><script src="turnstile.js?v=2"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script src="shared-supabase-client.js?v=2"></script>
-<script src="studio-backroom-auth.js?v=1"></script><script src="studio-backroom.js?v=unlimited-copy-20261113"></script><script src="studio-backroom-traffic.js?v=site-visits-20261010"></script><script src="studio-backroom-campaigns.js?v=20260929"></script>
-<script src="studio-backroom-waitlist.js?v=approved-20260923"></script><script src="studio-backroom-finance.js?v=20261009-refunds"></script><script type="module" src="studio-backroom-prompts.js?v=draft-image-test-20261010"></script>
+<script src="config.js?v=release-20261113"></script><script src="turnstile.js?v=release-20261113"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js?v=release-20261113"></script>
+<script src="shared-supabase-client.js?v=release-20261113"></script>
+<script src="studio-backroom-auth.js?v=release-20261113"></script><script src="studio-backroom.js?v=release-20261113"></script><script src="studio-backroom-traffic.js?v=release-20261113"></script><script src="studio-backroom-campaigns.js?v=release-20261113"></script>
+<script src="studio-backroom-waitlist.js?v=release-20261113"></script><script src="studio-backroom-finance.js?v=release-20261113"></script><script type="module" src="studio-backroom-prompts.js?v=release-20261113"></script>
 
-<script src="studio-backroom-modules.js?v=20261009"></script><script src="studio-backroom-pnl.js?v=20261015"></script><script src="studio-backroom-sprint.js?v=20261015"></script></body></html>
+<script src="studio-backroom-modules.js?v=release-20261113"></script><script src="studio-backroom-pnl.js?v=release-20261113"></script><script src="studio-backroom-sprint.js?v=release-20261113"></script><script src="studio-backroom-daily-report.js?v=release-20261113"></script><script src="studio-backroom-install.js?v=release-20261113"></script></body></html>
 
