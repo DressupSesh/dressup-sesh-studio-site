@@ -1,5 +1,5 @@
 // Owner-only MVP pilot. The verified create-listing response supplies access.owner.
-export function createOwnerUpgrade({client,openAuth,load=()=>import('./embedded.mjs')}) {
+export function createOwnerUpgrade({client,openAuth,load=()=>import('./embedded.mjs?v=compare-20261113')}) {
  const nav=document.querySelector('.mode-tabs');
  let identity=null,tab=null,panel=null,host=null,lifetime=null,pending=null,navListener=null;
  const panels=()=>['photos-panel','listing-panel','creative-panel'].map(id=>document.getElementById(id));
