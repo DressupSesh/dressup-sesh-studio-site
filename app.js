@@ -1,12 +1,15 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { getClient } from './studio-client.mjs?v=release-20261113';
+import { mountPhoneAuth } from './sms-auth.mjs?v=release-20261113';
+import { toolAccess, balanceLabel } from './studio-access.mjs?v=release-20261113';
+import { mountInstallPrompt } from './install-prompt.mjs?v=release-20261113';
 
 const config = window.DRESSUP_CONFIG || {};
 const configured = Boolean(config.supabaseUrl && config.supabasePublishableKey);
-const supabase = configured ? createClient(config.supabaseUrl, config.supabasePublishableKey) : null;
+const supabase = configured ? await getClient() : null;
 const PENDING_AUTH_ACTION_KEY = "dressupSeshPendingAuthAction";
 const PENDING_CONFIRMATION_EMAIL_KEY = "dressupSeshPendingConfirmationEmail";
 let betaSurveyRouting = false;
-let ownerUpgradeController = null;
+let upgradeController = null;
 const activeGenerationJobs = new Set();
 const appliedGenerationJobs = new Set();
 const uncertainGenerationOperations = new Set();
@@ -153,7 +156,7 @@ function copyBalanceLabel(access) {
 function applyAccess(access) {
   if (!access) return;
   state.access = access;
-  ownerUpgradeController?.setSession(state.session, access);
+  void upgradeController?.setSession(state.session);
   const suspended = Boolean(access.access_suspended);
   const refundNotice = $("#membership-refund-notice");
   refundNotice?.classList.toggle("hidden", !suspended);
@@ -169,9 +172,9 @@ function applyAccess(access) {
   } else if (access.owner) {
     elements.usagePill.textContent = "UNLIMITED ACCESS";
   } else if (access.paid) {
-    const background = Math.max(0, Number(access.background_remaining || 0));
+    const background = balanceLabel(access.background_remaining);
     const copy = copyBalanceLabel(access);
-    const creative = Math.max(0, Number(access.creative_remaining || 0));
+    const creative = balanceLabel(access.creative_remaining);
     elements.usagePill.textContent = `BG ${background} · COPY ${copy} · CREATIVE ${creative}`;
     elements.usagePill.setAttribute("aria-label", `${background} photo cleanup, ${copy === "Unlimited" ? "unlimited listing copy" : `${copy} listing copy credits`}, and ${creative} creative image credits available`);
   } else {
@@ -233,9 +236,9 @@ function renderBilling(access = state.access) {
   const paid = Boolean(access.paid);
   const owner = Boolean(access.owner);
   const itemsRemaining = owner ? "∞" : Math.max(0, Number(access.items_remaining || 0));
-  const backgroundRemaining = owner ? "∞" : Math.max(0, Number(access.background_remaining || 0));
+  const backgroundRemaining = owner ? "∞" : balanceLabel(access.background_remaining);
   const copyRemaining = owner ? "∞" : copyBalanceLabel(access);
-  const creativeRemaining = owner ? "∞" : Math.max(0, Number(access.creative_remaining || 0));
+  const creativeRemaining = owner ? "∞" : balanceLabel(access.creative_remaining);
   const bonusBackground = Math.max(0, Number(access.bonus_background_credits || 0));
   const bonusCopy = copyRemaining === "Unlimited" ? 0 : Math.max(0, Number(access.bonus_copy_credits || 0));
   const bonusCreative = Math.max(0, Number(access.bonus_creative_credits || 0));
@@ -546,7 +549,8 @@ async function recoverRecentGenerations() {
       state.clientItemId = jobs[0].client_item_id;
       keepActiveItem();
     }
-    const current = jobs.filter((job) => job.client_item_id === state.clientItemId).reverse();
+    const monthlyId=readCopyDraft();
+    const current = jobs.filter((job) => job.client_item_id === state.clientItemId || job.client_item_id === monthlyId).reverse();
     for (const job of current) {
       if (activeGenerationJobs.has(job.id) || appliedGenerationJobs.has(job.id)) continue;
       if (job.status === "failed") {
@@ -631,7 +635,7 @@ async function refreshSession(session) {
   const access = await verifyStudioSession(session);
   state.session = access ? session : null;
   state.access = access;
-  ownerUpgradeController?.setSession(state.session, access);
+  void upgradeController?.setSession(state.session);
   const locked = !state.session;
   document.body.classList.toggle("studio-locked", locked);
   document.body.classList.remove("auth-pending");
@@ -659,6 +663,7 @@ async function refreshSession(session) {
     : "Try three complete items free, or sign in to continue.";
   if (configured) $("#connection-copy").textContent = state.session ? "Studio ready" : "Sign in required";
   render();
+  window.dispatchEvent(new CustomEvent("studio:session", {detail:{session:state.session}}));
   if (state.session) {
     void continuePendingCheckout();
     void maybeRouteToBetaSurvey();
@@ -765,7 +770,7 @@ function openBilling(message = "") {
 if (supabase) {
   const { data } = await supabase.auth.getSession();
   await refreshSession(data.session);
-  supabase.auth.onAuthStateChange((_event, session) => { void refreshSession(session); });
+  supabase.auth.onAuthStateChange((_event, session) => { setTimeout(() => { void refreshSession(session); }, 0); });
 } else {
   await refreshSession(null);
 }
@@ -1008,6 +1013,7 @@ function clearAllPhotos() {
 }
 
 function render() {
+  renderToolAccess();
   const hasPhotos = state.photos.length > 0;
   const usablePhotos = state.photos.filter((photo) => photo.preview && (!photo.error || photo.resultBlob));
   const productPhotos = usablePhotos.filter((photo) => !photo.referenceOnly);
@@ -1017,7 +1023,7 @@ function render() {
   elements.actionBar.classList.toggle("hidden", !hasPhotos);
   elements.count.classList.toggle("hidden", !hasPhotos);
   elements.count.textContent = `${state.photos.length} PHOTO${state.photos.length === 1 ? "" : "S"}`;
-  elements.process.disabled = Boolean(state.access?.access_suspended) || !configured || !state.session || !pendingCleanupPhotos.length || state.processing || isPreparing;
+  elements.process.disabled = toolAccess("photos",state.access).locked || Boolean(state.access?.access_suspended) || !configured || !state.session || !pendingCleanupPhotos.length || state.processing || isPreparing;
   elements.clearAll.disabled = state.processing || state.creativeGenerating;
   elements.process.textContent = state.processing
     ? `PROCESSING ${state.processedCount + 1} OF ${state.processingTotal}…`
@@ -1028,13 +1034,13 @@ function render() {
         : "ALL PHOTOS READY";
   elements.emptyListing.classList.toggle("hidden", hasPhotos || Boolean(elements.listingOutput.textContent.trim()));
   elements.listingLayout.classList.toggle("hidden", !hasPhotos && !elements.listingOutput.textContent.trim());
-  elements.listingButton.disabled = Boolean(state.access?.access_suspended) || !configured || !state.session || !usablePhotos.length || isPreparing || uncertainGenerationOperations.has("listing_copy");
+  elements.listingButton.disabled = toolAccess("listing",state.access,upgradeAccess).locked || Boolean(state.access?.access_suspended) || !configured || !state.session || !usablePhotos.length || isPreparing || uncertainGenerationOperations.has("listing_copy");
   if (uncertainGenerationOperations.has("listing_copy")) elements.listingButton.textContent = "STATUS CHECK REQUIRED";
   elements.listingNote.classList.toggle("hidden", configured && Boolean(state.session));
   elements.listingNote.textContent = configured ? "Sign in to activate listing generation." : "Listing generation is temporarily unavailable.";
   elements.emptyCreative.classList.toggle("hidden", hasPhotos || state.creativeResults.length > 0);
   elements.creativeLayout.classList.toggle("hidden", !hasPhotos && !state.creativeResults.length);
-  elements.creativeGenerate.disabled = Boolean(state.access?.access_suspended) || !configured || !state.session || !productPhotos.length || isPreparing || state.creativeGenerating || uncertainGenerationOperations.has("creative_image");
+  elements.creativeGenerate.disabled = toolAccess("creative",state.access).locked || Boolean(state.access?.access_suspended) || !configured || !state.session || !productPhotos.length || isPreparing || state.creativeGenerating || uncertainGenerationOperations.has("creative_image");
   elements.creativeGenerate.textContent = uncertainGenerationOperations.has("creative_image")
     ? "STATUS CHECK REQUIRED" : state.creativeGenerating ? "GENERATING…" : creativeLabels[state.creativeType];
   elements.creativeSaveAll.disabled = !state.creativeResults.length || state.creativeGenerating;
@@ -1919,9 +1925,12 @@ async function createListing() {
       body.append("images", compactImage, `${role}-${index + 1}.jpg`);
     }
     elements.listingButton.textContent = "WRITING LISTING…";
+    const monthlyCopy = !state.access?.paid && !state.access?.owner && upgradeAccess && (!upgradeAccess.trial_active || state.access.copy_remaining===0 || (state.access.items_remaining===0&&!state.access.current_item_started));
+    if(monthlyCopy)body.set('client_item_id',await monthlyCopyId());
     const response = await runGeneration(body, "listing_copy");
     const data = await response.json();
-    applyAccess(data.access);
+    if(monthlyCopy)await refreshAccess();else applyAccess(data.access);
+    window.dispatchEvent(new Event("studio:allowances-refresh"));
     const listing = cleanListingText(data.listing);
     elements.listingOutput.textContent = listing;
     elements.listingOutput.classList.remove("hidden");
@@ -1932,7 +1941,7 @@ async function createListing() {
     elements.listingError.classList.remove("hidden");
   } finally {
     state.listingGenerating = false;
-    elements.listingButton.disabled = Boolean(state.access?.access_suspended) || uncertainGenerationOperations.has("listing_copy");
+    elements.listingButton.disabled = toolAccess("listing",state.access,upgradeAccess).locked || Boolean(state.access?.access_suspended) || uncertainGenerationOperations.has("listing_copy");
     elements.listingButton.textContent = uncertainGenerationOperations.has("listing_copy") ? "STATUS CHECK REQUIRED" : "CREATE LISTING COPY";
     updateWorkflowSignals();
   }
@@ -2064,6 +2073,9 @@ $$('[data-tab]').forEach((button) => button.addEventListener("click", () => {
   elements.photosPanel.classList.toggle("hidden", activeTab !== "photos");
   elements.listingPanel.classList.toggle("hidden", activeTab !== "listing");
   elements.creativePanel.classList.toggle("hidden", activeTab !== "creative");
+  document.getElementById('upgrade-panel').classList.toggle('hidden', activeTab !== 'upgrade');
+  const url = new URL(location.href); url.searchParams.set('tab', activeTab); history.replaceState(null,'',url);
+  renderToolAccess();
 }));
 
 $$('[data-creative-type]').forEach((button) => button.addEventListener("click", () => {
@@ -2124,7 +2136,7 @@ function openAuthDialog(action) {
 }
 
 elements.gateSignIn.addEventListener("click", () => openAuthDialog());
-elements.gateCreate.addEventListener("click", event => { event.preventDefault(); window.location.assign("/beta/"); });
+elements.gateCreate.addEventListener("click", event => { event.preventDefault(); openAuthDialog(); const newPhoneAccount=document.querySelector("#phone-login [data-new]"); if(newPhoneAccount)newPhoneAccount.checked=true; });
 
 elements.authButton.addEventListener("click", async () => {
   if (state.session && supabase) {
@@ -2267,12 +2279,11 @@ elements.forgotPasswordButton.addEventListener("click", async () => {
 });
 
 function getAuthRedirectUrl(intent = "") {
-  const redirect = new URL(window.location.href);
+  const redirect = new URL("/studio.html", window.location.origin);
   redirect.hash = "";
   redirect.search = "";
-  if (!redirect.pathname.endsWith("/")) {
-    redirect.pathname = redirect.pathname.replace(/[^/]+$/, "");
-  }
+  const tab = new URLSearchParams(location.search).get("tab");
+  if (tab) redirect.searchParams.set("tab", tab);
   if (intent === "subscribe") redirect.searchParams.set("intent", "subscribe");
   return redirect.toString();
 }
@@ -2349,9 +2360,63 @@ if (requestedAuthIntent === "signin" && !state.session) openAuthDialog();
 render();
 
 
-// Owner-only pilot: preserves the current public MVP and all existing workflows.
-try {
-  const { createOwnerUpgrade } = await import("./owner-upgrade/controller.mjs?v=posh-app-20261113");
-  ownerUpgradeController = createOwnerUpgrade({ client: supabase, openAuth: () => openAuthDialog() });
-  ownerUpgradeController.setSession(state.session, state.access);
-} catch (error) { console.error("Owner Listing Upgrade could not initialize", error); }
+
+// Additive sprint integration. The existing photo/copy/creative workflow stays in place.
+var upgradeAccess = null;
+function renderToolAccess() {
+  for (const button of document.querySelectorAll('.mode-tabs [data-tab]')) {
+    const status = toolAccess(button.dataset.tab, state.access, upgradeAccess);
+    button.classList.toggle('allowance-locked', status.locked);
+    let note = button.querySelector('.allowance-note');
+    if (!note) { note=document.createElement('small'); note.className='allowance-note'; button.append(note); }
+    note.textContent=status.note;
+    // Keep tab navigation and existing saved output available, even when generation is exhausted.
+    if(button.classList.contains('active')) {
+      document.getElementById('tool-allowance').hidden=!status.locked;
+      document.getElementById('tool-allowance-text').textContent=status.note+' Your existing work is still available to edit and save.';
+    }
+  }
+}
+document.getElementById('tool-upgrade').addEventListener('click',()=>openBilling());
+await mountPhoneAuth(document.getElementById('phone-login'), {getClient:()=>supabase,getCaptcha:()=>authCaptcha,onSuccess:async()=>{
+  elements.authDialog.close();
+  await refreshSession((await supabase.auth.getSession()).data.session);
+}});
+await mountPhoneAuth(document.getElementById('billing-phone'), {getClient:()=>supabase,linking:true,onSuccess:async()=>{
+  await refreshSession((await supabase.auth.getSession()).data.session);
+}});
+const install = await mountInstallPrompt({client:supabase,profilePage:true});
+document.getElementById('studio-install-open').addEventListener('click',()=>{elements.billingDialog.close();install.open();});
+const {createUpgradeController} = await import('./listing-upgrade/controller.mjs?v=release-20261113');
+upgradeController = createUpgradeController({panel:document.getElementById('upgrade-panel'),client:supabase,openAuth:()=>openAuthDialog(),onAccess:(access)=>{
+  upgradeAccess=access;
+  document.getElementById('trial-start').hidden=!state.session || !access || !access.allowed || state.access?.owner || state.access?.paid || !!access.trial_active;
+  render();
+}});
+await upgradeController.setSession(state.session);
+document.getElementById('activate-studio-trial').addEventListener('click',async event=>{
+  const button=event.currentTarget; button.disabled=true;
+  try {
+    const {data}=await supabase.auth.getSession();
+    const r=await fetch(config.supabaseUrl+'/functions/v1/listing-upgrade',{method:'POST',headers:{apikey:config.supabasePublishableKey,Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'trial'})});
+    const result=await r.json();if(!r.ok)throw Error(result.error||'Could not activate your trial.');
+    document.getElementById('trial-start').hidden=true; await refreshAccess();
+    window.dispatchEvent(new Event('studio:allowances-refresh'));
+  } catch(e) { document.getElementById('trial-start-status').textContent=e.message; }
+  finally {button.disabled=false;}
+});
+const initialTab=new URLSearchParams(location.search).get('tab');
+if(['photos','listing','creative','upgrade'].includes(initialTab))document.querySelector('[data-tab="'+initialTab+'"]').click();
+if(!state.session && new URLSearchParams(location.search).get('intent')!=='pro')openAuthDialog();
+
+function copyDraftKey(){return `studio-monthly-copy:${state.session?.user.id}:${state.clientItemId}`;}
+function readCopyDraft(){try{return localStorage.getItem(copyDraftKey());}catch{return null;}}
+async function monthlyCopyId(){
+ let id=readCopyDraft();if(id)return id;
+ id=crypto.randomUUID();
+ const r=await fetch(config.supabaseUrl+'/functions/v1/listing-upgrade',{method:'POST',headers:{...generationHeaders(),'Content-Type':'application/json'},body:JSON.stringify({action:'create',id,kind:'free_copy',source:{title:'Studio listing copy'}})});
+ const data=await r.json();if(!r.ok)throw Error(data.error||'Could not start your copy draft.');
+ try{localStorage.setItem(copyDraftKey(),id);}catch{}
+ return id;
+}
+if(new URLSearchParams(location.search).get('intent')==='pro')document.getElementById('pro-waitlist-dialog').showModal();
