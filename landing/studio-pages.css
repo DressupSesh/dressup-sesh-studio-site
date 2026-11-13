@@ -2,3 +2,5 @@
 @media(max-width:720px){.workplace-cards,.tool-extras,.story-layout,.copy-showcase{grid-template-columns:1fr;gap:24px}.workplace-cards article,.account-panel,.notice{padding:24px}.story-layout img{height:380px}.result-cards{grid-template-columns:1fr;max-width:420px;margin-inline:auto}.result-cards img{max-height:420px}.finish-flow ol{grid-template-columns:1fr;gap:14px}.phone-steps{grid-template-columns:1fr;gap:40px}.phone-steps article{text-align:center}.phone-steps article>p{margin-inline:auto}.phone{width:245px}.section-head{display:block}.tool-extras{padding:30px 0}.button-row{gap:15px}.account-panel input{font-size:16px}.save-guide h1{font-size:49px}.device-tabs button{flex:1}}
 
 .phone{border-radius:34px!important}.phone .toggle,.phone .toggle:after,.phone .install-icon,.phone .phone-url,.phone .sheet-grip{border-radius:14px!important}
+
+.founder-profile{margin:0;max-width:480px}.founder-portrait{display:block}.story-layout .founder-portrait img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover}.founder-profile p{font:16px/1.7 Arial,sans-serif;margin:16px 0}.founder-profile a{text-underline-offset:4px}
