@@ -4,3 +4,5 @@
 .external-arrow{position:relative;display:block;width:8px;height:8px;border-top:1px solid currentColor;border-right:1px solid currentColor;margin-right:2px}.external-arrow::after{content:"";position:absolute;width:11px;height:1px;background:currentColor;top:3px;right:-2px;transform:rotate(-45deg)}
 
 #post-dialog{max-width:490px}#post-heading{font-size:25px;margin-bottom:20px}.save-listing{width:100%;margin-bottom:12px}.save-listing.received:disabled{opacity:1;cursor:default}#post-status{min-height:36px;margin:0 0 20px;line-height:1.6}.marketplace-section{border-top:1px solid var(--line);padding-top:20px}.marketplace-section h3{font-size:13px;margin:0}.marketplace-section .marketplaces{gap:8px;margin:12px 0}.marketplace-section .marketplaces a{font-size:12px;min-height:44px;align-items:center;padding:10px 12px}.marketplace-section .small{margin-bottom:0}#save-help{margin-top:18px}#save-help #copy-again{width:100%}#help-status:empty{display:none}#help-status{margin:8px 0}#save-help .dialog-actions{margin-bottom:8px}
+
+.save-listing.received{font-size:26px;line-height:1}
