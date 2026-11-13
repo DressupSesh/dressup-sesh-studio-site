@@ -1,8 +1,8 @@
-import { ALLOWANCES, PLAN_NAMES, MARKETPLACES, listingLink, combinedCopy, reviewProblem, photoFilename } from './core.mjs';
+import { ALLOWANCES, PLAN_NAMES, MARKETPLACES, listingLink, combinedCopy, reviewProblem, photoFilename } from './core.mjs?v=compare-20261113';
 export async function mountUpgrade(host, options) {
  if(!host) return;
  host.attachShadow({mode:'open'});
- const response=await fetch('/owner-upgrade/workspace.html', {signal:options.signal});
+ const response=await fetch('/owner-upgrade/workspace.html?v=compare-20261113', {signal:options.signal});
  if(!response.ok)throw new Error('Listing Upgrade could not load. Refresh to try again.');
  host.shadowRoot.innerHTML=await response.text(); // Static, same-origin application template.
  function setDraftURL(id) {
@@ -30,18 +30,16 @@ function invalidate() {
   if (draftID) { clearTimeout(savingTimer); savingTimer = setTimeout(() => persistDraft().catch(error => message('#draft-status', error.message, true)), 800); }
   $('#reviewed').checked = false;
   $('#quick-post').disabled = true;
-  if (state.prepared) revoke(state.prepared.zipURL);
   state.prepared = null;
   $('#review-label').classList.remove('attention');
-  message('#review-status', state.mode ? 'Review your latest changes to enable Quick Post.' : '');
+  message('#review-status', state.mode ? 'Review your latest changes to enable Quick Save.' : '');
   $('#title-count').textContent = `${$('#title').value.length} / 200`;
 }
 function usage() {
-  if (copyOnly) { $('#plan-caption').textContent=liveAccess && ['member','pro','owner'].includes(liveAccess.tier) ? 'Unlimited listing copy' : 'Free member · 10 copy outputs / month'; $('#usage-caption').textContent=state.mode==='sample'?'Example · no allowance used':liveAccess?`${liveAccess.free_copy_remaining ?? 'Unlimited'} left this month`:'Sign in to see your allowance'; return; }
   if (liveAccess?.tier === 'owner') { $('#plan-caption').textContent='Owner · Unlimited upgrades'; $('#usage-caption').textContent='Unlimited access'; return; }
   if (liveAccess) { $('#plan-caption').textContent = `${liveAccess.tier === 'member' ? 'Member' : liveAccess.tier} · ${liveAccess.limit} upgrades / month`; $('#usage-caption').textContent = `${liveAccess.remaining} left · resets ${new Date(liveAccess.resets_at).toLocaleDateString()}`; return; }
   $('#plan-caption').textContent = `${PLAN_NAMES[state.plan]} · ${ALLOWANCES[state.plan]} upgrades / month`;
-  $('#usage-caption').textContent = state.mode === 'sample' ? 'Example · no allowance used' : 'Sign in to see your allowance';
+  $('#usage-caption').textContent = 'Sign in to see your allowance';
 }
 fields.forEach(key => $('#' + key).addEventListener('input', invalidate));
 
@@ -53,26 +51,19 @@ function clearWorkspace() {
   state.photos = []; state.originals = []; state.original = null; state.mode = '';
   fields.forEach(key => { $('#' + key).value = ''; });
   $('#photo-grid').replaceChildren(); $('#original-photos').replaceChildren();
-  $('#workspace').hidden = true; $('#welcome').hidden = false;
+  $('#workspace').hidden = true; $('#welcome').hidden = false; $('#import-panel').hidden=false;
   $('#copy-note').value = '';
   usage();
 }
 function reveal(original, mode) {
   state.mode = mode; state.original = original;
   fields.forEach(key => { $('#' + key).value = original[key] || ''; });
-  $('#original-title').textContent = original.title;
-  $('#original-description').textContent = original.description;
-  $('#source-caption').textContent = mode === 'sample' ? '· jacket example' : '· your listing details';
-  $('#result-label').textContent = mode === 'sample' ? 'JACKET EXAMPLE · REAL STUDIO OUTPUT' : 'YOUR UPLOADED LISTING';
-  $('#result-note').textContent = mode === 'sample'
-    ? 'Actual Studio results from this jacket. Review the photos and copy, then test saving. This example does not use your allowance.'
-    : 'Your original listing is kept alongside your editable results. Check every detail before posting.';
-  $('#bg-state').textContent = mode === 'sample' ? '1 / 1 ready' : 'Ready to run';
-  $('#copy-state').textContent = mode === 'sample' ? 'Actual Studio copy' : 'Ready to run';
-  $('#ghost-state').textContent = mode === 'sample' ? 'Image ready' : 'Ready to run';
-  message('#copy-status', mode === 'sample' ? 'This is the actual copy generated for the jacket.' : 'Use your notes to refine the next draft.');
-  $('#resume-workflows').hidden = mode === 'sample';
-  $('#workspace').hidden = false; $('#welcome').hidden = true;
+  $('#original-title').textContent = original.title || 'No title imported';
+  $('#original-description').textContent = original.description || 'No description imported';
+  message('#result-note','Review the main photo and copy before saving.');
+  $('#copy-state').textContent='Ready to run'; $('#ghost-state').textContent='Ready to run';
+  message('#copy-status','Use your notes to refine the next draft.');
+  $('#workspace').hidden = false; $('#welcome').hidden = true; $('#import-panel').hidden=true; $('#recent-drafts').open=false;
   renderPhotos(); renderOriginals(); invalidate(); usage();
   $('#workspace-heading').focus({ preventScroll: true });
   $('#workspace').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
@@ -86,32 +77,6 @@ async function photoFrom(blob, label, kind, choose = true) {
   if (probe.naturalWidth * probe.naturalHeight > 48_000_000) { revoke(url); throw new Error('That image is too large. Use a smaller copy.'); }
   return { id: `photo-${++nextPhotoID}`, blob, originalBlob: blob, url, label, kind, selected: choose, failed: false };
 }
-async function sampleAsset(path, label, kind, choose) {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error(`Could not load ${label}. Please try again.`);
-  return photoFrom(await response.blob(), label, kind, choose);
-}
-$('#sample').addEventListener('click', async () => {
-  if (state.busy) return;
-
-  state.busy = true; $('#sample').disabled = true;
-  message('#import-status', 'Loading the jacket example…');
-  try {
-    const photos = await Promise.all([
-      sampleAsset('/assets/jacket-background-removed.jpeg', 'Clean background', 'Background removed · sample', true),
-      sampleAsset('/assets/jacket-ghost-mannequin.jpeg', 'Ghost mannequin', 'AI styling image · sample', true),
-      sampleAsset('/assets/jacket-before.jpeg', 'Original photo', 'Original · optional for export', false)
-    ]);
-    // Retain the current workspace if the sample cannot be loaded completely.
-    clearWorkspace();
-    // clearWorkspace revoked the new temporary object URLs too; recreate them.
-    for (const photo of photos) photo.url = urlFor(photo.blob);
-    state.photos = photos; state.originals = [photos[2]];
-    reveal({"title": "Black Leather-Style Zip Front Jacket With Point Collar And Front Pockets", "description": "Black jacket with a zip-front closure, pointed collar, long sleeves, seam detailing, and two front welt pockets. The structured silhouette makes it an easy everyday outer layer.\n\nA versatile piece for moto-inspired, minimalist, casual, and downtown streetwear looks. Style with denim, boots, graphic tees, or layered over knitwear for an understated edgy outfit.\n\nGood condition. Visible creasing throughout the exterior consistent with wear.\n\nKeywords: black jacket, zip front jacket, leather-style jacket, moto-inspired jacket, casual outerwear, minimalist jacket, streetwear jacket, pointed collar jacket, everyday jacket\n\nEstimated era: 2010s\u20132020s\nApprox. original retail: $60\u2013$120", "brand": "", "size": "", "condition": "Good condition; exterior creasing.", "price": ""}, 'sample');
-    message('#import-status', 'Jacket example loaded. No upgrade was charged.');
-  } catch (error) { message('#import-status', error.message, true); }
-  finally { state.busy = false; $('#sample').disabled = false; }
-});
 $('#import-form').addEventListener('submit', async event => {
   event.preventDefault(); if (state.busy) return;
   try {
@@ -121,10 +86,9 @@ $('#import-form').addEventListener('submit', async event => {
     message('#import-status', 'Importing the listing photos and details…');
     const result = await api('', { action: 'import', id: crypto.randomUUID(), url });
     await loadDraft(result.draft);
-    if (result.missingPhotos) message('#import-status', `${result.missingPhotos} photos could not be imported. Add the missing photos before posting.`, true);
-    else message('#import-status', `${state.originals.length} photos imported. Compare with your original listing and add any missing photos.`);
+    message('#import-status', `${state.originals.length} source photo${state.originals.length === 1 ? '' : 's'} imported. ${result.missingPhotos ? 'Some photos were unavailable. ' : ''}We’ll create one new main photo and refreshed copy.`);
     await runWorkflows();
-  } catch (error) { message('#import-status', error.message, true); $('#manual').open = true; }
+  } catch (error) { message($('#workspace').hidden ? '#import-status' : '#result-note', error.message, true); $('#manual').open = true; }
   finally { state.busy = false; await refreshAccount(); }
 });
 async function readFiles(fileList, room = 16) {
@@ -157,47 +121,35 @@ $('#manual-load').addEventListener('click', async () => {
     state.photos = state.originals.filter(p=>!p.reference).map(p => ({...p})); renderPhotos();
     setDraftURL(draftID);
     await persistDraft(); await runWorkflows();
-  } catch (error) { message('#manual-status', error.message, true); }
+  } catch (error) { message($('#workspace').hidden ? '#manual-status' : '#result-note', error.message, true); }
   finally { state.busy = false; await refreshAccount(); }
-});
-$('#add-photo').addEventListener('change', async event => {
-  if (!event.target.files.length) return;
-  try { const photos = await readFiles(event.target.files, Math.max(0, 48 - state.photos.length)); state.photos.push(...photos); invalidate(); renderPhotos(); message('#photo-status', 'Photo added. Review your selection again.'); }
-  catch (error) { message('#photo-status', error.message, true); }
-  event.target.value = '';
 });
 function renderOriginals() {
   const container = $('#original-photos'); container.replaceChildren();
-  for (const photo of state.originals) { const img = new Image(); img.src = urlFor(photo.originalBlob); img.alt = 'Original listing photo'; container.append(img); }
+  const main = state.originals.find(p => !p.reference);
+  if (main) { const img = new Image(); img.src = main.url; img.alt = 'Original listing main photo'; container.append(img); }
+  $('#reference-status').textContent = `${state.originals.length} source photo${state.originals.length === 1 ? '' : 's'} available. Up to 6 guide the main image; up to 10 guide the copy.`;
 }
 function action(label, handler, className = '') {
   const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.className = className; button.addEventListener('click', handler); return button;
 }
 function renderPhotos() {
   const grid = $('#photo-grid'); grid.replaceChildren();
-  state.photos.forEach((photo, index) => {
-    const card = document.createElement('article'); card.className = 'photo-card' + (photo.selected ? ' selected' : '');
-    const frame = document.createElement('div'); frame.className = 'photo-preview';
-    const img = new Image(); img.src = photo.url; img.alt = photo.label;
-    img.addEventListener('error', () => { photo.failed = true; invalidate(); message('#photo-status', `${photo.label} could not be displayed. Replace it or deselect it before Quick Post.`, true); });
-    const label = document.createElement('label'); label.className = 'photo-check';
-    const check = document.createElement('input'); check.type = 'checkbox'; check.checked = photo.selected; check.setAttribute('aria-label', 'Include ' + photo.label);
-    check.addEventListener('change', () => { photo.selected = check.checked; invalidate(); card.classList.toggle('selected', photo.selected); });
-    label.append(check, document.createTextNode('Save')); frame.append(img, label);
-    const meta = document.createElement('div'); meta.className = 'photo-meta';
-    const name = document.createElement('strong'); name.textContent = `${index + 1}. ${photo.label}`;
-    const kind = document.createElement('small'); kind.textContent = photo.kind;
-    const buttons = document.createElement('div'); buttons.className = 'photo-actions';
-    buttons.append(action('Edit', () => openEditor(photo)));
-    const undo = action('Undo', () => { photo.blob = photo.originalBlob; photo.asset = null; photo.job = null; revoke(photo.url); photo.url = urlFor(photo.blob); photo.failed = false; invalidate(); renderPhotos(); }); undo.disabled = photo.blob === photo.originalBlob; buttons.append(undo);
-    const move = action('←', () => { if (index > 0) { [state.photos[index - 1], state.photos[index]] = [state.photos[index], state.photos[index - 1]]; invalidate(); renderPhotos(); } }); move.setAttribute('aria-label', 'Move ' + photo.label + ' earlier'); move.disabled = index === 0; buttons.append(move);
-    buttons.append(action('Remove', () => { state.photos = state.photos.filter(p => p.id !== photo.id); revoke(photo.url); invalidate(); renderPhotos(); }, 'remove'));
-    if (photo.job && draftID) buttons.append(action('Regenerate', () => regeneratePhoto(photo)));
-    meta.append(name, kind, buttons); card.append(frame, meta); grid.append(card);
-  });
-  if (!state.photos.length) message('#photo-status', 'Add a photo to continue.');
+  const photo = state.photos.filter(p => p.kind?.includes('Ghost mannequin')).at(-1);
+  state.photos.forEach(p => { p.selected = p === photo; });
+  if (!photo) { const placeholder = document.createElement('p'); placeholder.className='photo-placeholder'; placeholder.textContent='Your ghost mannequin main photo will appear here.'; grid.append(placeholder); return; }
+  const card = document.createElement('article'); card.className = 'photo-card';
+  const frame = document.createElement('div'); frame.className = 'photo-preview';
+  const img = new Image(); img.src = photo.url; img.alt = 'New ghost mannequin main photo';
+  img.addEventListener('error', () => { photo.failed = true; invalidate(); message('#photo-status', 'The new main photo could not be displayed. Reopen the draft or regenerate before saving.', true); });
+  frame.append(img);
+  const buttons = document.createElement('div'); buttons.className = 'photo-actions';
+  buttons.append(action('Edit photo', () => { if(!state.busy) void openEditor(photo); }));
+  const undo = action('Undo edit', () => { if(state.busy)return; photo.blob=photo.originalBlob; photo.asset=null; photo.job=null; revoke(photo.url); photo.url=urlFor(photo.blob); photo.failed=false; invalidate(); renderPhotos(); }); undo.disabled=photo.blob===photo.originalBlob; buttons.append(undo);
+  buttons.append(action('Regenerate', () => regeneratePhoto(photo)));
+  card.append(frame,buttons); grid.append(card);
 }
-$('#regenerate-copy').addEventListener('click', async () => { if (state.busy) return; if (!draftID) { message('#copy-status', 'The example shows actual saved output. Start your own listing to generate new copy.'); return; } state.busy=true; try { await generate('listing_copy', null, true); await persistDraft(); } catch (e) { message('#copy-status', e.message, true); } finally { state.busy=false; } });
+$('#regenerate-copy').addEventListener('click', async () => { if (state.busy) return; if (!draftID) return; state.busy=true; invalidate(); try { await generate('listing_copy', null, true); await persistDraft(); } catch (e) { message('#copy-status', e.message, true); } finally { state.busy=false; } });
 
 async function openEditor(photo) {
   editPhoto = photo; editImage = new Image(); editImage.src = photo.url;
@@ -226,7 +178,7 @@ $('#save-edit').addEventListener('click', async () => {
     const blob = await new Promise(resolve => $('#edit-canvas').toBlob(resolve, 'image/jpeg', 0.94));
     if (!blob) throw new Error('Could not save the photo edit.');
     target.asset = null; target.job = null; target.blob = blob; target.failed = false; revoke(target.url); target.url = urlFor(blob);
-    invalidate(); renderPhotos(); $('#editor-dialog').close(); message('#photo-status', 'Photo edit applied. Review your updated photos before Quick Post.');
+    invalidate(); renderPhotos(); $('#editor-dialog').close(); message('#photo-status', 'Photo edit applied. Review your updated photos before Quick Save.');
   } catch (error) { message('#editor-status', error.message, true); }
   finally { $('#save-edit').disabled = false; }
 });
@@ -237,7 +189,7 @@ $('#reviewed').addEventListener('change', async event => {
   const problem = reviewProblem({ ...values(), photos: state.photos });
   if (problem) { event.target.checked = false; $('#review-label').classList.add('attention'); message('#review-status', problem, true); return; }
   const revision = state.revision;
-  message('#review-status', 'Preparing your selected photos…');
+  message('#review-status', 'Preparing your main photo…');
   try {
     const files = selected().map((photo, i) => new File([photo.blob], photoFilename(i, photo.blob.type), { type: photo.blob.type }));
     const copy = combinedCopy($('#title').value, $('#description').value);
@@ -252,14 +204,6 @@ function copyText(text, status = '#post-copy-status') {
   if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).then(() => report(true), () => report(false));
   const area = $('#copy-fallback'); area.value = text; area.closest('details').open = true; area.focus(); area.select();
   try { return Promise.resolve(report(document.execCommand('copy'))); } catch { return Promise.resolve(report(false)); }
-}
-async function downloadZip() {
-  if (!state.prepared) return;
-  try {
-    const zip = new window.JSZip(); state.prepared.files.forEach(file => zip.file(file.name, file)); zip.file('Listing Copy.txt', state.prepared.copy);
-    const blob = await zip.generateAsync({type:'blob'}); const a = document.createElement('a'); a.href = urlFor(blob); a.download = 'Listing-Upgrade.zip'; a.click();
-    message('#post-save-status', 'Optional ZIP download requested.');
-  } catch { message('#post-save-status', 'ZIP could not be prepared. Save the individual photos below.', true); }
 }
 function individualPhotos() {
   const container = $('#individual-photos'); container.replaceChildren();
@@ -286,13 +230,13 @@ $('#quick-post').addEventListener('click', () => {
   copyText(state.prepared.copy);
   if(copyOnly){$('#individual-photos').hidden=true;message('#post-save-status','');}
   else if (canShareFiles() && /iPhone|iPad|Android/i.test(navigator.userAgent)) sharePhotos();
-  else individualPhotos();
+  else { individualPhotos(); const link=$('#individual-photos a'); if(link)link.click(); }
 });
 $('#copy-again').addEventListener('click', () => state.prepared && copyText(state.prepared.copy));
 $('#copy-title').addEventListener('click', () => state.prepared && copyText(state.prepared.title).then(ok => { if (ok) message('#post-copy-status', 'Title copied.'); }));
 $('#copy-description').addEventListener('click', () => state.prepared && copyText(state.prepared.description).then(ok => { if (ok) message('#post-copy-status', 'Description copied.'); }));
 $('#save-phone').addEventListener('click', sharePhotos);
-$('#save-zip').addEventListener('click', downloadZip);
+
 for (const market of MARKETPLACES) {
   const link = document.createElement('a'); link.href = market.url; link.target = '_blank'; link.rel = 'noopener noreferrer external';
   const text = document.createElement('span'); text.textContent = market.name;
@@ -311,7 +255,7 @@ async function requireAccount() {
 }
 async function api(query='', body, raw=false) {
   if(options.signal?.aborted)throw new Error('Your account changed. Reopen Listing Upgrade.');
-  if (document.body.dataset.activation === 'pending') throw new Error('Live processing is awaiting activation. The jacket example is available to test editing and saving.');
+  if (document.body.dataset.activation === 'pending') throw new Error('Live processing is awaiting activation.');
   const c=await authClient(), {data}=await c.auth.getSession();
   if(!data.session)throw new Error('Sign in to continue.');
   const headers={apikey:window.DRESSUP_CONFIG.supabasePublishableKey,Authorization:'Bearer '+data.session.access_token};
@@ -360,7 +304,8 @@ async function loadDraft(draft) {
   invalidate();
   setDraftURL(draft.id);
   message('#draft-status','Saved draft opened. Run / resume to finish any pending workflows.');
-  $('#result-label').textContent='YOUR LISTING UPGRADE';
+  if(activeJobs.listing_copy?.applied) $('#copy-state').textContent='Copy ready';
+  if(state.photos.some(p=>p.kind?.includes('Ghost mannequin'))) $('#ghost-state').textContent='Image ready';
 }
 async function restorePhoto(ref,id) {
   const r=await api(ref.job?`?job=${ref.job}&result=1`:`?id=${id}&asset=${ref.asset}`,undefined,true);
@@ -399,7 +344,7 @@ async function generate(operation, original=null, retry=false) {
     const old=state.photos.find(p=>p.job && (p.job===previous?.id||p.job===job.id));
     const photo=await photoFrom(blob,operation==='creative_image'?'Ghost mannequin':`Clean photo ${state.originals.indexOf(original)+1}`,operation==='creative_image'?'Ghost mannequin · AI styling':'Background removed',true);
     Object.assign(photo,{job:job.id,sourceId:original?.id});
-    if(old)state.photos[state.photos.indexOf(old)]=photo;else state.photos.push(photo);
+    if(old){revoke(old.url);state.photos[state.photos.indexOf(old)]=photo;}else state.photos.push(photo);
     renderPhotos();message(statusNode,operation==='creative_image'?'Image ready':`${Object.entries(activeJobs).filter(([k,v])=>k.startsWith('background_remove')&&v.status==='succeeded').length} / ${state.originals.length} ready`);
   }
   job.applied=true; invalidate();await persistDraft();
@@ -407,14 +352,14 @@ async function generate(operation, original=null, retry=false) {
 async function runWorkflows() {
   if(!draftID||!state.originals.length)throw new Error('Add your listing photos first.');
   state.busy=true;$('#resume-workflows').disabled=true;fields.forEach(key=>$('#'+key).disabled=true);invalidate();
-  const tasks=copyOnly ? [['listing_copy',null]] : [['listing_copy',null],['creative_image',null],...state.originals.map(p=>['background_remove',p])];let errors=0;
+  const tasks=[['listing_copy',null],['creative_image',null]];let errors=0;
   async function worker(){while(tasks.length){const [op,photo]=tasks.shift();const key=op+(photo?':'+photo.id:'');try{await generate(op,photo,activeJobs[key]?.status==='failed');}catch(e){errors++;message(op==='listing_copy'?'#copy-state':op==='creative_image'?'#ghost-state':'#bg-state',e.message,true);}}}
-  try{await Promise.all([worker(),worker(),worker()]);message('#result-note',errors?'Some results need attention. Your completed results are saved; use Run / resume to continue.':(copyOnly?'Your copy is ready. Check the details, make your edits, then review to copy it.':'Your upgrade is ready. Edit your photos and copy, then check the review box.'));}
+  try{await Promise.all([worker(),worker()]);message('#result-note',errors?'Some results need attention. Your completed results are saved; use Run / resume to continue.':(copyOnly?'Your copy is ready. Check the details, make your edits, then review to copy it.':'Your upgrade is ready. Edit your main photo and copy, then check the review box.'));}
   finally{state.busy=false;fields.forEach(key=>$('#'+key).disabled=false);$('#resume-workflows').disabled=false;await persistDraft();await refreshAccount();}
 }
 async function regeneratePhoto(photo){
-  if(state.busy)return;state.busy=true;
-  try{await generate(photo.sourceId?'background_remove':'creative_image',state.originals.find(p=>p.id===photo.sourceId)||null,true);}
+  if(state.busy)return;state.busy=true;invalidate();
+  try{await generate('creative_image',null,true);}
   catch(e){message('#photo-status',e.message,true);}finally{state.busy=false;}
 }
 $('#resume-workflows').addEventListener('click',()=>{if(!state.busy)runWorkflows().catch(e=>message('#result-note',e.message,true));});
