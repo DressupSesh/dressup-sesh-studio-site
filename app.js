@@ -2140,7 +2140,14 @@ elements.gateCreate.addEventListener("click", event => { event.preventDefault();
 
 elements.authButton.addEventListener("click", async () => {
   if (state.session && supabase) {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      openAuthDialog();
+      elements.authMessage.textContent = "Sign-out could not finish. Please try again.";
+      return;
+    }
+    upgradeController?.destroy();
+    window.location.replace("/?view=landing");
   } else {
     openAuthDialog();
   }
