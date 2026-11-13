@@ -4,3 +4,5 @@
 .phone{border-radius:34px!important}.phone .toggle,.phone .toggle:after,.phone .install-icon,.phone .phone-url,.phone .sheet-grip{border-radius:14px!important}
 
 .founder-profile{margin:0;max-width:480px}.founder-portrait{display:block}.story-layout .founder-portrait img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover}.founder-profile p{font:16px/1.7 Arial,sans-serif;margin:16px 0}.founder-profile a{text-underline-offset:4px}
+
+.story-layout{grid-template-columns:1fr!important}.founder-profile{display:flex;align-items:center;flex-wrap:wrap;gap:16px;max-width:none}.story-layout .founder-portrait img{width:64px;height:64px;border-radius:50%!important}.founder-profile p{margin:0}.founder-profile #founder-counter{flex-basis:100%;font-size:15px;border-top:1px solid #d7d3ca;padding-top:16px}
