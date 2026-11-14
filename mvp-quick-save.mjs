@@ -1,21 +1,27 @@
-export function mountMvpQuickSave({isOwner,getAssets,prepareOriginal}) {
+export function mountMvpQuickSave({isOwner,getAssets,prepareOriginal,getCopy=()=>""}) {
   const button=document.createElement('button');button.type='button';button.className='workflow-icon';button.id='mvp-quick-save';button.title='Quick Save';button.setAttribute('aria-label','Quick Save: select photos');button.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg>';button.hidden=true;
   document.querySelector('.workflow-tools')?.append(button);
   let dialog=null,version=0,urls=[];
   const close=()=>{version++;dialog?.remove();dialog=null;urls.forEach(URL.revokeObjectURL);urls=[];};
   const refresh=()=>{button.hidden=!isOwner();button.disabled=!getAssets().length;if(!isOwner())close();};
   button.onclick=async()=>{
-    if(!isOwner())return;close();const ticket=version;dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Choose photos to save');
+    if(!isOwner())return;close();const ticket=version;
+    const text=getCopy().trim();
+    const copied=text && navigator.clipboard?.writeText ? navigator.clipboard.writeText(text).then(()=>true,()=>false) : Promise.resolve(false);
+    dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Choose photos to save');
     dialog.className='mvp-save-dialog';
-    dialog.innerHTML='<header class="mvp-save-heading"><h2>Quick Save</h2><button data-close type="button" aria-label="Close Quick Save">×</button></header><p class="mvp-save-intro">Select photos, then choose where to save them. All photos start selected.</p><section data-edited-section><h3>Edited &amp; creative photos</h3><div class="mvp-save-grid" data-edited></div></section><section data-original-section><h3>Original photos</h3><div class="mvp-save-grid mvp-save-originals" data-originals></div></section><footer class="mvp-save-actions"><p role="status">Preparing photo copies…</p><button data-save disabled>Save selected photos</button><a data-posh target="_blank" rel="noopener" href="https://poshmark.com/create-listing">Open Poshmark ↗</a><a class="mvp-save-web" href="https://poshmark.com/create-listing" target="_blank" rel="noopener">Poshmark website</a></footer>';
+    dialog.innerHTML='<header class="mvp-save-heading"><h2>Quick Save</h2><button data-close type="button" aria-label="Close Quick Save">×</button></header><p class="mvp-save-intro">Select photos, then choose where to save them. Edited photos start selected. Originals are optional.</p><section data-edited-section><h3>Edited &amp; creative photos</h3><div class="mvp-save-grid" data-edited></div></section><section data-original-section><h3>Original photos</h3><div class="mvp-save-grid mvp-save-originals" data-originals></div></section><footer class="mvp-save-actions"><p role="status">Preparing photo copies…</p><button data-save disabled>Save selected photos</button><a data-posh target="_blank" rel="noopener" href="https://poshmark.com/create-listing">Open Poshmark ↗</a><a class="mvp-save-web" href="https://poshmark.com/create-listing" target="_blank" rel="noopener">Poshmark website</a></footer>';
     const status=dialog.querySelector('[role=status]'),save=dialog.querySelector('[data-save]'),chosen=[];
     const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
     if(mobile){const a=dialog.querySelector('[data-posh]');a.href=/Android/i.test(navigator.userAgent)?'intent://#Intent;scheme=poshmark;package=com.poshmark.app;end':'poshmark://';a.removeAttribute('target');}
     dialog.querySelector('[data-close]').onclick=close;dialog.addEventListener('cancel',e=>{e.preventDefault();close()});document.body.append(dialog);dialog.showModal();
+    const copyStatus=document.createElement('p');copyStatus.setAttribute('role','status');dialog.querySelector('.mvp-save-intro').after(copyStatus);
+    const copyOk=await copied;if(ticket!==version)return;
+    copyStatus.textContent=copyOk?'Title + description copied.':text?'Copy failed. Use the copy button in the actions bar to retry.':'No listing copy yet. Generate it before copying.';
     let failed=0;
     for(const [i,asset] of getAssets().slice().sort((a,b)=>Number(!!a.original)-Number(!!b.original)).entries()){
       try{const file=asset.original?await prepareOriginal(asset.blob,asset.name):new File([asset.blob],asset.name,{type:asset.blob.type||'image/jpeg'});if(ticket!==version)return;
-      const url=URL.createObjectURL(file);urls.push(url);const label=document.createElement('label'),check=document.createElement('input'),img=document.createElement('img');check.type='checkbox';check.checked=true;check.setAttribute('aria-label','Include '+asset.label);img.src=url;img.alt=asset.label;const caption=document.createElement('span');caption.textContent=asset.label;label.className='mvp-save-photo';label.append(check,caption,img);dialog.querySelector(asset.original?'[data-originals]':'[data-edited]').append(label);const entry={file,check};chosen.push(entry);check.onchange=update;
+      const url=URL.createObjectURL(file);urls.push(url);const label=document.createElement('label'),check=document.createElement('input'),img=document.createElement('img');check.type='checkbox';check.checked=!asset.original;check.setAttribute('aria-label','Include '+asset.label);img.src=url;img.alt=asset.label;const caption=document.createElement('span');caption.textContent=asset.label;label.className='mvp-save-photo';label.append(check,caption,img);dialog.querySelector(asset.original?'[data-originals]':'[data-edited]').append(label);const entry={file,check};chosen.push(entry);check.onchange=update;
       }catch{failed++;}
     }
     if(ticket!==version)return;
