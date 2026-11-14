@@ -1,4 +1,4 @@
-import { mountMvpQuickSave } from './mvp-quick-save.mjs?v=owner-preview-1';
+import { mountMvpQuickSave } from './mvp-quick-save.mjs?v=owner-preview-2';
 import { getClient } from './studio-client.mjs?v=release-20261113';
 import { mountPhoneAuth } from './sms-auth.mjs?v=release-20261113';
 import { toolAccess, balanceLabel } from './studio-access.mjs?v=release-20261113';
