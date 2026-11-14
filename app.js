@@ -1,4 +1,4 @@
-import { mountMvpQuickSave } from './mvp-quick-save.mjs?v=owner-preview-2';
+import { mountMvpQuickSave } from './mvp-quick-save.mjs?v=owner-preview-3';
 import { getClient } from './studio-client.mjs?v=release-20261113';
 import { mountPhoneAuth } from './sms-auth.mjs?v=release-20261113';
 import { toolAccess, balanceLabel } from './studio-access.mjs?v=release-20261113';
@@ -648,6 +648,7 @@ async function refreshSession(session) {
   if (!mvpQuickSave) mvpQuickSave = mountMvpQuickSave({
     isOwner: () => Boolean(state.session && state.access?.owner),
     prepareOriginal: createFreshPhotoCopy,
+    getCopy: () => elements.listingOutput.textContent,
     getAssets: () => [
       ...originalRecordPhotos().map((r,i)=>({blob:r.shareBlob,name:r.shareFilename,label:`Original ${i+1}`,original:true})),
       ...savableRecordPhotos().filter(r=>!r.photo.referenceOnly).map((r,i)=>({blob:r.shareBlob,name:r.shareFilename,label:`Edited ${i+1}`})),
