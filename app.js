@@ -967,6 +967,7 @@ function resetCreativeOutput() {
 }
 
 function renderCreativeResults() {
+  mvpQuickSave?.refresh();
   const hasResults = state.creativeResults.length > 0;
   elements.creativePlaceholder.classList.toggle("hidden", hasResults);
   elements.creativeResults.classList.toggle("hidden", !hasResults);
@@ -1025,6 +1026,7 @@ function clearAllPhotos() {
 }
 
 function render() {
+  mvpQuickSave?.refresh();
   renderToolAccess();
   const hasPhotos = state.photos.length > 0;
   const usablePhotos = state.photos.filter((photo) => photo.preview && (!photo.error || photo.resultBlob));
